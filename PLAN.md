@@ -24,6 +24,15 @@ contains one. Run `#print axioms` on any definition to check this.
 - **Checks before handing over.** `lake build` passes, no new `axiom` and no `admit`, and
   `#print axioms` on your theorems shows only `sorryAx` coming from other packages.
 
+## Frozen files
+
+- **Frozen in full.** These have no `sorry` and no owner; any change goes through the router:
+  `Hierarchy.lean`, `Table.lean`, `Main.lean`, `DSPP.lean`, `lakefile.toml`,
+  `lean-toolchain`, `lake-manifest.json`.
+- **Frozen definitions and statements, proofs owned by a package:** every other file under
+  `DSPP/`. Its owner may replace a `sorry` by a proof and add helper lemmas. The owner may not
+  change a `def`, a `structure`, or the statement of a listed theorem.
+
 ## Label table
 
 Status: **proved** (no `sorry` in the proof itself, but it may use sorried lemmas), **sorry**,
@@ -76,9 +85,10 @@ or **def** (a definition).
 | lem:time | `card_entries_le`, `card_splits_le`, `card_interfaces_le`, `splitWork_le`, `leafWork_le`, `lem_time` | Complexity | sorry |
 | lem:time (exponent) | `exponent_eq` | Complexity | proved |
 | thm:main | `thm_main` | Main | proved (from `cor_correct`, `lem_time`) |
+| cor:undirected | `cor_undirected` | Main | proved (from `thm_main`) |
 
-Not formalized (outside the target): cor:undirected, prop:arcdisjoint, prop:edgedisjoint, the
-removal of parallel arcs, and the output of a solution. See `DEVIATIONS.md`.
+Not formalized (outside the target): prop:arcdisjoint, prop:edgedisjoint, the removal of
+parallel arcs, and the output of a solution. See `DEVIATIONS.md`.
 
 ## Dependencies
 

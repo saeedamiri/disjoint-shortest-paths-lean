@@ -28,7 +28,11 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
 
 4. **Indices.** The paper's index `1` is `0 : Fin k`. The star indices `j = 2..k` form the type
    `StarIdx k = {j : Fin k // j ≠ 0}`, which has `k - 1` elements. Lemmas that need index `0`
-   assume `[NeZero k]`. The field `Instance.two_le_k` gives `k ≥ 2`.
+   assume `[NeZero k]`.
+   - The fields of `Instance`: `two_le_k` (`k ≥ 2`), `terminals_injective` (the `2k`
+     terminals are pairwise distinct) and `len_pos` (lengths are positive on arcs).
+   - Consequence: `thm_main` says nothing about `k = 1`, which is the single-pair
+     shortest-path problem.
 
 5. **lem:W12** is split into `lem_W1` and `lem_W2`.
 
@@ -93,6 +97,9 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     by a step of def:construction" (`ConstrStep`), for every choice of good levels. This is what
     "the tree is finite" means for a tree built by choices. `exists_constructionTree` turns it
     into a finite `CutTree` that satisfies the construction rule.
+    - Paths: `lem_termination` is stated for arbitrary lists `Rs`, without the
+      `D_l`-path hypothesis. This is intentional. The argument uses only the widths and the
+      position of the levels, and a cell with no good level has no step.
 
 14. **thm:hierarchy** is stated with an explicit root cell `C0` together with (H1)–(H4). (H3)
     is in the pieces-only form of item 9.
@@ -131,7 +138,8 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     with multiplicity.
 
 19. **lem:sound** is stated for every `U` and every `Π` whose ends lie in `U`. This is more
-    general than "for every entry".
+    general than "for every entry". **lem:complete** is stated as in the paper:
+    `HasSolution → Tab V Π_0`.
 
 ## Complexity (Complexity.lean)
 
@@ -146,9 +154,13 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     - Final bound: `lem_time` gives `splitWork + leafWork ≤ f(k) · n^{6k²-4k-1}`.
     - Not counted: the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`).
 
+21. **cor:undirected.** An undirected instance is an `Instance` whose arc relation and
+    lengths are symmetric. Each edge `uv` becomes the arcs `(u,v)` and `(v,u)` of the same
+    length, which is the paper's reduction. Vertex-disjoint shortest paths are the same in
+    both views. `cor_undirected` is `thm_main` restricted to these instances.
+
 ## Not formalized
 
-- cor:undirected (the reduction from undirected to directed graphs).
 - prop:arcdisjoint and prop:edgedisjoint (section "Remarks and open problems").
 - The output of a solution (unfolding stored choices).
 - The removal of parallel arcs (item 1).

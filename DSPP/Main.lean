@@ -25,4 +25,18 @@ theorem thm_main :
       G.splitWork + G.leafWork ≤ f k * Fintype.card V ^ (6 * k ^ 2 - 4 * k - 1) :=
   ⟨fun _ _ _ _ _ G => G.cor_correct, lem_time⟩
 
+/-- cor:undirected.  The undirected problem: an undirected graph is the instance whose arc
+relation and lengths are symmetric (every edge `uv` gives the arcs `(u,v)` and `(v,u)` of the
+same length).  Its vertex-disjoint shortest paths are those of the symmetric directed instance,
+so the guillotine table decides it within the same bound. -/
+theorem cor_undirected :
+    (∀ (k : ℕ) [NeZero k] (V : Type) [Fintype V] [DecidableEq V] (G : Instance V k),
+      (∀ u v, G.arc u v → G.arc v u) → (∀ u v, G.len u v = G.len v u) →
+      (G.Tab Finset.univ G.Pi0 ↔ G.HasSolution)) ∧
+    ∃ f : ℕ → ℕ, ∀ (k : ℕ) [NeZero k] (V : Type) [Fintype V] [DecidableEq V]
+      (G : Instance V k), (∀ u v, G.arc u v → G.arc v u) → (∀ u v, G.len u v = G.len v u) →
+      G.splitWork + G.leafWork ≤ f k * Fintype.card V ^ (6 * k ^ 2 - 4 * k - 1) := by
+  obtain ⟨hc, f, hf⟩ := thm_main
+  exact ⟨fun k _ V _ _ G _ _ => hc k V G, f, fun k _ V _ _ G _ _ => hf k V G⟩
+
 end DSPP
