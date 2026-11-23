@@ -257,6 +257,7 @@ theorem mem_arcs {R : List V} {e : V × V} (h : e ∈ arcs R) : e.1 ∈ R ∧ e.
   obtain ⟨h1, h2⟩ := List.of_mem_zip h
   exact ⟨h1, List.mem_of_mem_tail h2⟩
 
+omit [DecidableEq V] in
 theorem rel_of_mem_arcs {rel : V → V → Prop} {R : List V} (hR : R.IsChain rel) {e : V × V}
     (h : e ∈ arcs R) : rel e.1 e.2 := by
   induction R using list_induction2 with
@@ -269,6 +270,7 @@ theorem rel_of_mem_arcs {rel : V → V → Prop} {R : List V} (hR : R.IsChain re
     · exact hR.1
     · exact ih hR.2 h
 
+omit [DecidableEq V] in
 theorem arcs_pairwise {rel : V → V → Prop} {R : List V} (hR : R.Pairwise rel) :
     (arcs R).Pairwise (fun e e' => rel e.1 e'.1) := by
   induction R using list_induction2 with
