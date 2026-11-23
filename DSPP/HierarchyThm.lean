@@ -45,7 +45,8 @@ theorem cor_crossarcs (Rs : Fin k → List V) (C0 : Cell k) (T : CutTree k)
     (hcut : ∀ C j lam, (C, some (j, lam)) ∈ T.nodes C0 → G.crossNum Rs C j lam ≤ 3 * k - 4)
     (C : Cell k) (j : StarIdx k) (lam : ℝ) (hC : (C, some (j, lam)) ∈ T.nodes C0) :
     G.crossArcCount Rs C j lam ≤ 3 * k - 4 := by
-  sorry
+  obtain ⟨hg, hlo, hhi⟩ := G.cut_of_mem_nodes T C0 hT hC
+  exact (G.crossArcCount_le_crossNum Rs C j lam hg hlo hhi).trans (hcut C j lam hC)
 
 end Instance
 

@@ -56,19 +56,35 @@ theorem lem_W1 {l : Fin k} {u v : V} (h : G.inD l u v) :
     (∀ j, j ≠ l → 0 ≤ G.Xv l j v - G.Xv l j u) ∧
     (∀ i j, i ≠ l → j ≠ l →
       |G.Xv i j v - G.Xv i j u| ≤ (G.Xv l i v - G.Xv l i u) + (G.Xv l j v - G.Xv l j u)) := by
-  sorry
+  have hl := (G.lem_W0 h.1 l).2 h
+  have hj := fun j => (G.lem_W0 h.1 j).1
+  simp only [Instance.Xv, X, Instance.pt]
+  refine ⟨fun j _ => by linarith [hj j], fun i j _ _ => ?_⟩
+  rw [abs_le]; constructor <;> linarith [hj i, hj j]
 
 /-- lem:W12 (W2).  An arc of `D_l` inside a point class increases every potential by exactly
 `2ℓ(u,v) > 0`. -/
 theorem lem_W2 {l : Fin k} {u v : V} (h : G.inD l u v) (hc : G.SameClass u v) :
     0 < 2 * G.len u v ∧ ∀ j, G.F j v - G.F j u = 2 * G.len u v := by
-  sorry
+  have hl := (G.lem_W0 h.1 l).2 h
+  refine ⟨by linarith [G.len_pos u v h.1], fun j => ?_⟩
+  have := hc l j
+  simp only [Instance.Xv, X, Instance.pt] at this
+  linarith
 
 /-- Point classes are determined by the star coordinates (text after the definition of point
 classes). -/
 theorem sameClass_iff_star [NeZero k] (u v : V) :
     G.SameClass u v ↔ ∀ j : StarIdx k, G.Xv 0 j u = G.Xv 0 j v := by
-  sorry
+  refine ⟨fun h j => h 0 j, fun h i j => ?_⟩
+  have key : ∀ i : Fin k, G.Xv 0 i u = G.Xv 0 i v := by
+    intro i
+    by_cases hi : i = 0
+    · subst hi; simp [Instance.Xv, X]
+    · exact h ⟨i, hi⟩
+  have h1 := key i; have h2 := key j
+  simp only [Instance.Xv, X] at *
+  linarith
 
 /-- lem:classpiece.  The positions of a `D_l`-path that lie in one point class form an interval
 of integers. -/

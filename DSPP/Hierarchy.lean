@@ -14,7 +14,14 @@ namespace DSPP
 def P (k : ℕ) : ℕ := (k - 1) * (3 * k - 4) + k
 
 theorem P_eq (k : ℕ) (hk : 2 ≤ k) : P k = 3 * k ^ 2 - 6 * k + 4 := by
-  sorry
+  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hk
+  have h1 : 3 * (2 + m) - 4 = 3 * m + 2 := by omega
+  have h2 : 3 * (2 + m) ^ 2 - 6 * (2 + m) + 4 = 3 * m ^ 2 + 6 * m + 4 := by
+    have : 3 * (2 + m) ^ 2 = 3 * m ^ 2 + 6 * m + 6 * (2 + m) := by ring
+    omega
+  rw [h2, P, h1]
+  have : 2 + m - 1 = m + 1 := by omega
+  rw [this]; ring
 
 /-- `θ = 1/(6k)`, the margin of the good levels (cor:goodlevel). -/
 noncomputable def theta (k : ℕ) : ℝ := 1 / (6 * k)
@@ -57,6 +64,21 @@ def IsHierarchy : CutTree k → Cell k → Prop
   | .node j lam lt rt, C =>
       G.IsGeneric j lam ∧ C.lo j < lam ∧ lam < C.hi j ∧
         IsHierarchy lt (C.lower j lam) ∧ IsHierarchy rt (C.upper j lam)
+
+/-- Every cut of a hierarchy is at a generic level strictly between the bounds of its cell. -/
+theorem cut_of_mem_nodes (T : CutTree k) (C0 : Cell k) (hT : G.IsHierarchy T C0)
+    {C : Cell k} {j : StarIdx k} {lam : ℝ} (hC : (C, some (j, lam)) ∈ T.nodes C0) :
+    G.IsGeneric j lam ∧ C.lo j < lam ∧ lam < C.hi j := by
+  induction T generalizing C0 with
+  | leaf => simp [CutTree.nodes] at hC
+  | node j' lam' lt rt ihl ihr =>
+    obtain ⟨hg, hlo, hhi, hl, hr⟩ := hT
+    simp only [CutTree.nodes, List.mem_cons, List.mem_append, Prod.mk.injEq,
+      Option.some.injEq] at hC
+    rcases hC with ⟨rfl, rfl, rfl⟩ | hC | hC
+    · exact ⟨hg, hlo, hhi⟩
+    · exact ihl _ hl hC
+    · exact ihr _ hr hC
 
 /-- `U` meets at most one point class. -/
 def AtMostOneClass (U : Finset V) : Prop := ∀ u ∈ U, ∀ v ∈ U, G.SameClass u v

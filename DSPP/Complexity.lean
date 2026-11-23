@@ -69,7 +69,13 @@ end Instance
 /-- The exponent of lem:time: `2(k-1) + 2P(k) + 1 + 2(3k-4) = 6k^2 - 4k - 1` for `k ≥ 2`. -/
 theorem exponent_eq (k : ℕ) (hk : 2 ≤ k) :
     2 * (k - 1) + 2 * P k + 1 + 2 * (3 * k - 4) = 6 * k ^ 2 - 4 * k - 1 := by
-  sorry
+  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hk
+  have h1 : 3 * (2 + m) - 4 = 3 * m + 2 := by omega
+  have h3 : 2 + m - 1 = m + 1 := by omega
+  have h2 : 6 * (2 + m) ^ 2 - 4 * (2 + m) - 1 = 6 * m ^ 2 + 20 * m + 15 := by
+    have : 6 * (2 + m) ^ 2 = 6 * m ^ 2 + 20 * m + 16 + 4 * (2 + m) := by ring
+    omega
+  rw [h2, P, h1, h3]; ring
 
 /-- lem:time.  The table is computed with work `f(k) · n^{6k^2-4k-1}` for a function `f` of `k`
 alone. -/

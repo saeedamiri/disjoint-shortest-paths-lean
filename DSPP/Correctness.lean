@@ -28,8 +28,9 @@ theorem lem_complete (h : G.HasSolution) : G.Tab Finset.univ G.Pi0 := by
   sorry
 
 /-- cor:correct.  `T(V, Π_0)` is true if and only if the instance has a solution. -/
-theorem cor_correct : G.Tab Finset.univ G.Pi0 ↔ G.HasSolution := by
-  sorry
+theorem cor_correct : G.Tab Finset.univ G.Pi0 ↔ G.HasSolution :=
+  ⟨fun h => G.sem_root_iff.1
+    (G.lem_sound _ _ (fun _ _ => ⟨Finset.mem_univ _, Finset.mem_univ _⟩) h), G.lem_complete⟩
 
 /-- The root `(V, Π_0)` is an entry of the table (`|Π_0| = k ≤ P(k)`). -/
 theorem isEntry_root : G.IsEntry Finset.univ G.Pi0 := by
