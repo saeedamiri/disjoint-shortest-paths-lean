@@ -9,7 +9,7 @@ Target: a Lean proof of `DSPP.thm_main` with no `sorry` and no axioms beyond `pr
   solution exists (cor:correct).
 - **Size.** The work of the table is at most `f(k) · n^{6k²-4k-1}` (lem:time).
 
-`lake build` (inside `lean/`) succeeds. Every remaining `sorry` is in a proof; no definition
+`lake build` succeeds. Every remaining `sorry` is in a proof; no definition
 contains one. Run `#print axioms` on any definition to check this.
 
 ## Rules for builders
