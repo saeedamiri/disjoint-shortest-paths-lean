@@ -496,7 +496,7 @@ theorem tab_cut (hP : G.IsSolution Ps) {C : Cell k} {j : StarIdx k} {lam : ℝ}
     rw [hUminus, hUplus]
     refine ⟨(mem_PiOf hP).2 ⟨l, r, hr, h2⟩, ?_, ?_⟩
     · rw [h2]
-      exact rel_of_mem_arcs (piece_props hP hr).2.2.2.1 he.1
+      exact rel_of_mem_arcs_chain (piece_props hP hr).2.2.2.1 he.1
     · simpa [hc_def] using he.2
   have hassigned : ∀ l, ∀ r ∈ pieces U (Ps l),
       assigned I (dem l d r) = ((arcs r).filter c).toFinset := by

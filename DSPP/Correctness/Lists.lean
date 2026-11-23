@@ -249,7 +249,7 @@ omit [DecidableEq V] in
 theorem arcs_singleton (x : V) : arcs [x] = [] := rfl
 
 omit [DecidableEq V] in
-theorem arcs_cons_cons (x y : V) (ys : List V) :
+theorem arcs_cons_cons_l (x y : V) (ys : List V) :
     arcs (x :: y :: ys) = (x, y) :: arcs (y :: ys) := rfl
 
 omit [DecidableEq V] in
@@ -258,13 +258,13 @@ theorem mem_arcs {R : List V} {e : V × V} (h : e ∈ arcs R) : e.1 ∈ R ∧ e.
   exact ⟨h1, List.mem_of_mem_tail h2⟩
 
 omit [DecidableEq V] in
-theorem rel_of_mem_arcs {rel : V → V → Prop} {R : List V} (hR : R.IsChain rel) {e : V × V}
+theorem rel_of_mem_arcs_chain {rel : V → V → Prop} {R : List V} (hR : R.IsChain rel) {e : V × V}
     (h : e ∈ arcs R) : rel e.1 e.2 := by
   induction R using list_induction2 with
   | h0 => simp [arcs_nil] at h
   | h1 x => simp [arcs_singleton] at h
   | h2 x y ys ih =>
-    rw [arcs_cons_cons, List.mem_cons] at h
+    rw [arcs_cons_cons_l, List.mem_cons] at h
     rw [List.isChain_cons_cons] at hR
     rcases h with rfl | h
     · exact hR.1
@@ -277,7 +277,7 @@ theorem arcs_pairwise {rel : V → V → Prop} {R : List V} (hR : R.Pairwise rel
   | h0 => simp [arcs_nil]
   | h1 x => simp [arcs_singleton]
   | h2 x y ys ih =>
-    rw [arcs_cons_cons, List.pairwise_cons]
+    rw [arcs_cons_cons_l, List.pairwise_cons]
     rw [List.pairwise_cons] at hR
     exact ⟨fun e he => hR.1 e.1 (mem_arcs he).1, ih hR.2⟩
 
@@ -297,21 +297,21 @@ theorem filter_arcs_pieces {U : Finset V} (c : V × V → Bool)
     · by_cases hy : y ∈ U
       · obtain ⟨r, rest, h1, h2⟩ := pieces_cons_cons_of_mem ys hx hy
         rw [h1, List.flatMap_cons] at ih
-        rw [h2, List.flatMap_cons, arcs_cons_cons, arcs_cons_cons, List.filter_cons,
+        rw [h2, List.flatMap_cons, arcs_cons_cons_l, arcs_cons_cons_l, List.filter_cons,
           List.filter_cons, ih]
         split_ifs <;> simp
       · have hc' : c (x, y) = false := by
           cases h : c (x, y)
           · rfl
           · exact absurd (hc _ h).2 hy
-        rw [pieces_cons_cons_of_not_mem ys hx hy, List.flatMap_cons, arcs_cons_cons,
+        rw [pieces_cons_cons_of_not_mem ys hx hy, List.flatMap_cons, arcs_cons_cons_l,
           List.filter_cons, hc', ih]
         simp [arcs_singleton]
     · have hc' : c (x, y) = false := by
         cases h : c (x, y)
         · rfl
         · exact absurd (hc _ h).1 hx
-      rw [pieces_cons_of_not_mem _ hx, arcs_cons_cons, List.filter_cons, hc', ← ih]
+      rw [pieces_cons_of_not_mem _ hx, arcs_cons_cons_l, List.filter_cons, hc', ← ih]
       simp
 
 end Arcs
@@ -359,7 +359,7 @@ theorem chainL_perm_pieces (l : Fin k) (d : V) (c : V × V → Bool) :
           · exact absurd h'.1 hxB
       have := ih A B y a hd hc hy hys
       obtain ⟨r, rest, h1, h2⟩ := pieces_cons_cons_of_mem ys hx hy
-      rw [arcs_cons_cons, List.filter_cons, hc', hlast, h2, pieces_cons_of_not_mem _ hxB]
+      rw [arcs_cons_cons_l, List.filter_cons, hc', hlast, h2, pieces_cons_of_not_mem _ hxB]
       rw [h1] at this
       simpa [dem, setFst] using this
     · -- the arc `(x, y)` is cut
@@ -370,7 +370,7 @@ theorem chainL_perm_pieces (l : Fin k) (d : V) (c : V × V → Bool) :
         (fun v hv => (hys v hv).symm)
       obtain ⟨r, rest, h1, -⟩ := pieces_cons_of_mem (U := B) ys hy
       rw [h1] at this
-      rw [arcs_cons_cons, List.filter_cons, hc', hlast, pieces_cons_cons_of_not_mem ys hx hyA,
+      rw [arcs_cons_cons_l, List.filter_cons, hc', hlast, pieces_cons_cons_of_not_mem ys hx hyA,
         pieces_cons_of_not_mem _ hxB, h1]
       simp only [ite_true, List.map_cons, List.modifyHead_cons, chainL, List.cons_append]
       refine List.Perm.cons _ ?_
