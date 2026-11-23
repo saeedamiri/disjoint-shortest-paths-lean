@@ -1,1 +1,1 @@
-import DSPP.HierarchyThm
+import DSPP.Table
