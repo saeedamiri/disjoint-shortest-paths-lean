@@ -95,7 +95,7 @@ theorem lem_Di_b {i : Fin k} {R : List V} (h : G.IsPath R (G.s i) (G.t i)) :
     refine ⟨huv, hsu, hvt, ?_⟩
     obtain ⟨hut, b2⟩ := G.dist_le_len_add_dist hvt huv
     have b1 := (G.dist_triangle hsu hut).2
-    rw [hd] at hlen ⊢
+    rw [hd]
     linarith
   · intro hc
     refine ⟨h, ?_⟩

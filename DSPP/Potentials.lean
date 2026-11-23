@@ -48,7 +48,56 @@ def SameClass (u v : V) : Prop := ∀ i j : Fin k, G.Xv i j u = G.Xv i j v
 the arcs of `D_j`. -/
 theorem lem_W0 {u v : V} (huv : G.arc u v) (j : Fin k) :
     G.F j v - G.F j u ≤ 2 * G.len u v ∧ (G.inD j u v → G.F j v - G.F j u = 2 * G.len u v) := by
-  sorry
+  have lp := G.len_pos u v huv
+  have hAle : ∀ x : V, (if G.Reach (G.s j) x then min (G.dist (G.s j) x) (G.d j) else G.d j)
+      ≤ G.d j := by
+    intro x
+    split_ifs
+    · exact min_le_right _ _
+    · exact le_rfl
+  have hBnn : ∀ x : V, 0 ≤ (if G.Reach x (G.t j) then max (G.d j - G.dist x (G.t j)) 0 else 0) := by
+    intro x
+    split_ifs
+    · exact le_max_right _ _
+    · exact le_rfl
+  have hA : (if G.Reach (G.s j) v then min (G.dist (G.s j) v) (G.d j) else G.d j) ≤
+      (if G.Reach (G.s j) u then min (G.dist (G.s j) u) (G.d j) else G.d j) + G.len u v := by
+    by_cases hu : G.Reach (G.s j) u
+    · obtain ⟨hv, hle⟩ := G.dist_le_dist_add_len hu huv
+      rw [if_pos hv, if_pos hu]
+      rcases le_total (G.dist (G.s j) u) (G.d j) with h | h
+      · rw [min_eq_left h]
+        exact (min_le_left _ _).trans (by linarith)
+      · rw [min_eq_right h]
+        linarith [min_le_right (G.dist (G.s j) v) (G.d j)]
+    · rw [if_neg hu]
+      linarith [hAle v]
+  have hB : (if G.Reach v (G.t j) then max (G.d j - G.dist v (G.t j)) 0 else 0) ≤
+      (if G.Reach u (G.t j) then max (G.d j - G.dist u (G.t j)) 0 else 0) + G.len u v := by
+    by_cases hv : G.Reach v (G.t j)
+    · obtain ⟨hu, hle⟩ := G.dist_le_len_add_dist hv huv
+      rw [if_pos hv, if_pos hu]
+      rcases le_total (G.d j - G.dist v (G.t j)) 0 with h | h
+      · rw [max_eq_right h]
+        linarith [le_max_right (G.d j - G.dist u (G.t j)) 0]
+      · rw [max_eq_left h]
+        linarith [le_max_left (G.d j - G.dist u (G.t j)) 0]
+    · rw [if_neg hv]
+      linarith [hBnn u]
+  refine ⟨?_, fun hin => ?_⟩
+  · unfold F
+    linarith
+  · obtain ⟨_, hsu, hvt, heq⟩ := hin
+    obtain ⟨hsv, h1, h2, hut, h3, h4⟩ := G.lem_Di_a (i := j) ⟨huv, hsu, hvt, heq⟩
+    have n1 := G.dist_nonneg (G.s j) u
+    have n2 := G.dist_nonneg v (G.t j)
+    unfold F
+    rw [if_pos hsv, if_pos hsu, if_pos hvt, if_pos hut,
+      min_eq_left (by linarith : G.dist (G.s j) v ≤ G.d j),
+      min_eq_left (by linarith : G.dist (G.s j) u ≤ G.d j),
+      max_eq_left (by linarith : 0 ≤ G.d j - G.dist v (G.t j)),
+      max_eq_left (by linarith : 0 ≤ G.d j - G.dist u (G.t j))]
+    linarith
 
 /-- lem:W12 (W1).  Along an arc of `D_l` the coordinates `X_{lj}` do not decrease, and every
 other coordinate changes by at most the increase of the two monotone ones. -/
@@ -92,7 +141,40 @@ theorem lem_classpiece {l : Fin k} {R : List V} (hR : G.IsDPath l R) {a b c : �
     (hab : a ≤ b) (hbc : b ≤ c) (hc : c < R.length)
     (hac : G.SameClass (R[a]'(by omega)) (R[c]'hc)) :
     G.SameClass (R[a]'(by omega)) (R[b]'(by omega)) := by
-  sorry
+  obtain ⟨_, hch, _⟩ := hR
+  rw [List.isChain_iff_getElem] at hch
+  have mono : ∀ n (p : ℕ) (hp : p + n < R.length) (j : Fin k),
+      G.Xv l j (R[p]'(by omega)) ≤ G.Xv l j (R[p + n]'hp) := by
+    intro n
+    induction n with
+    | zero => intro p hp j; exact le_rfl
+    | succ n ih =>
+      intro p hp j
+      have h1 := ih p (by omega) j
+      have h2 : G.Xv l j (R[p + n]'(by omega)) ≤ G.Xv l j (R[p + n + 1]'(by omega)) := by
+        have := G.lem_W1 (hch (p + n) (by omega))
+        by_cases hj : j = l
+        · subst hj; simp [Instance.Xv, X]
+        · have := this.1 j hj
+          linarith
+      exact h1.trans h2
+  obtain ⟨n1, rfl⟩ := Nat.exists_eq_add_of_le hab
+  obtain ⟨n2, rfl⟩ := Nat.exists_eq_add_of_le hbc
+  intro i j
+  have key : ∀ j', G.Xv l j' (R[a]'(by omega)) = G.Xv l j' (R[a + n1]'(by omega)) := by
+    intro j'
+    have e1 := mono n1 a (by omega) j'
+    have e2 := mono n2 (a + n1) (by omega) j'
+    have e3 := hac l j'
+    have : R[a + n1 + n2]'hc = R[a + (n1 + n2)]'(by omega) := by simp [Nat.add_assoc]
+    rw [this] at e2 e3
+    have e4 := mono (n1 + n2) a (by omega) j'
+    have e5 : G.Xv l j' (R[a + n1 + n2]'hc) = G.Xv l j' (R[a + (n1 + n2)]'(by omega)) := by
+      simp [Nat.add_assoc]
+    linarith
+  have hx : ∀ x : V, G.Xv i j x = G.Xv l j x - G.Xv l i x := by
+    intro x; simp only [Instance.Xv, X]; ring
+  rw [hx, hx, key i, key j]
 
 end Instance
 
