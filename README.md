@@ -10,8 +10,8 @@ The main theorem, `DSPP.thm_main` in `DSPP/Main.lean`, states two things:
 - **Size.** The work of the table is at most `f(k) · n^(6k²-4k-1)`.
 
 **Status:** work in progress. All definitions and all statements are in place. Some proofs
-still use `sorry`. `PLAN.md` lists each paper label with its Lean name and status.
-`DEVIATIONS.md` records where a Lean statement differs in form from the paper.
+still use `sorry`. Each Lean theorem is named after its label in the paper, which its docstring
+also gives. `DEVIATIONS.md` records where a Lean statement differs in form from the paper.
 
 ## Building
 
