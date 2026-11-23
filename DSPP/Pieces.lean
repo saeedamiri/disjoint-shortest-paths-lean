@@ -21,6 +21,7 @@ variable {k : ℕ} [NeZero k] {V : Type*} [Fintype V] [DecidableEq V]
 
 namespace PiecesProof
 
+omit [NeZero k] in
 theorem X_segment (i j : Fin k) (p q : Fin k → ℝ) (c : ℝ) :
     X i j (p + c • (q - p)) = X i j p + c * (X i j q - X i j p) := by
   simp only [X, Pi.add_apply, Pi.smul_apply, Pi.sub_apply, smul_eq_mul]; ring
@@ -56,7 +57,8 @@ theorem upper_carrier_subset (C : Cell k) (j : StarIdx k) (lam : ℝ) (h : C.lo 
   · simp only [Cell.upper, Function.update_of_ne hj] at a b
     exact ⟨a, b⟩
 
-theorem crossPt_comm (j : StarIdx k) (lam : ℝ) (p q : Fin k → ℝ) (h : X 0 j.1 p ≠ X 0 j.1 q) :
+theorem crossPt_comm (j : StarIdx k) (lam : ℝ) (p q : Fin k → ℝ)
+    (h : X 0 j.1 p ≠ X 0 j.1 q) :
     crossPt j lam p q = crossPt j lam q p := by
   have h1 : X 0 j.1 q - X 0 j.1 p ≠ 0 := sub_ne_zero.2 (Ne.symm h)
   have h2 : X 0 j.1 p - X 0 j.1 q ≠ 0 := sub_ne_zero.2 h
@@ -82,20 +84,21 @@ theorem bnd_lower (C : Cell k) (j : StarIdx k) (lam : ℝ) (τ : StarIdx k × Bo
   obtain ⟨j', b⟩ := τ
   by_cases hj : j' = j
   · subst hj; cases b <;> simp [bnd, Cell.lower]
-  · cases b <;> simp [bnd, Cell.lower, hj, Function.update_of_ne hj]
+  · cases b <;> simp [bnd, Cell.lower, hj]
 
 theorem bnd_upper (C : Cell k) (j : StarIdx k) (lam : ℝ) (τ : StarIdx k × Bool) :
     bnd (C.upper j lam) τ = if τ = (j, false) then min (C.hi j) lam else bnd C τ := by
   obtain ⟨j', b⟩ := τ
   by_cases hj : j' = j
   · subst hj; cases b <;> simp [bnd, Cell.upper]
-  · cases b <;> simp [bnd, Cell.upper, hj, Function.update_of_ne hj]
+  · cases b <;> simp [bnd, Cell.upper, hj]
 
 /-! ### Pieces and boundary arcs -/
 
 /-- The number of non-empty blocks of `R.splitOnP p`. -/
 def cnt (p : V → Bool) (R : List V) : ℕ := ((R.splitOnP p).filter fun l => !l.isEmpty).length
 
+omit [Fintype V] [DecidableEq V] in
 theorem splitOnP_head (p : V → Bool) (xs : List V) :
     ∃ h t, xs.splitOnP p = h :: t ∧ (h = [] ↔ ∀ y ∈ xs.head?, p y = true) := by
   cases xs with
@@ -109,11 +112,12 @@ theorem splitOnP_head (p : V → Bool) (xs : List V) :
         | cons h t => exact ⟨h, t, rfl⟩
       exact ⟨y :: h, t, by rw [List.splitOnP_cons, if_neg hy, ht]; rfl, by simp [hy]⟩
 
+omit [Fintype V] [DecidableEq V] in
 theorem cnt_cons_sep (p : V → Bool) (x : V) (xs : List V) (hx : p x = true) :
     cnt p (x :: xs) = cnt p xs := by
   unfold cnt
   rw [List.splitOnP_cons, if_pos hx]
-  simp [List.filter_cons]
+  simp
 
 theorem cnt_cons_keep (p : V → Bool) (x : V) (xs : List V) (hx : ¬ p x = true) :
     cnt p (x :: xs) = cnt p xs + (if ∀ y ∈ xs.head?, p y = true then 1 else 0) := by
@@ -125,9 +129,9 @@ theorem cnt_cons_keep (p : V → Bool) (x : V) (xs : List V) (hx : ¬ p x = true
   by_cases hh : h = []
   · subst hh
     rw [if_pos (hiff.1 rfl)]
-    (try simp [List.filter_cons]) <;> omega
+    simp
   · rw [if_neg (fun h' => hh (hiff.2 h'))]
-    (try simp [List.filter_cons, hh]) <;> omega
+    simp [hh]
 
 /-- The number of arcs of `R` with exactly one end in `U`. -/
 def bdArcs (U : Finset V) (R : List V) : ℕ :=
@@ -192,9 +196,11 @@ theorem countP_le_sum_countP {α ι : Type*} [Fintype ι] (L : List α) (p : α 
 
 /-- The constraint `τ` of a cell as a linear form: `X_{1j}` for a lower bound, `-X_{1j}` for an
 upper bound. -/
-def phi (τ : StarIdx k × Bool) (x : Fin k → ℝ) : ℝ := bif τ.2 then -X 0 τ.1.1 x else X 0 τ.1.1 x
+def phi (τ : StarIdx k × Bool) (x : Fin k → ℝ) : ℝ :=
+  bif τ.2 then -X 0 τ.1.1 x else X 0 τ.1.1 x
 
-/-- The right-hand side of the constraint `τ`: `x ∈ C` iff `beta τ ≤ phi τ x` for all `τ`. -/
+/-- The right-hand side of the constraint `τ`: `x ∈ C` iff `beta C τ ≤ phi τ x` for all
+`τ`. -/
 def beta (C : Cell k) (τ : StarIdx k × Bool) : ℝ := bif τ.2 then -C.hi τ.1 else C.lo τ.1
 
 theorem mem_carrier_iff (C : Cell k) (x : Fin k → ℝ) :
@@ -244,7 +250,6 @@ theorem exists_entry_constraint (C : Cell k) {p q : Fin k → ℝ} (hp : p ∉ C
   rw [phi_segment]
   by_cases hσ : phi σ p < beta C σ
   · have hle := hmax σ (by simp [S, hσ])
-    try simp only at hle
     have hdσ : 0 < phi σ q - phi σ p := by linarith [hq σ]
     have hmul : (beta C σ - phi σ p) / (phi σ q - phi σ p) * (phi σ q - phi σ p) =
         beta C σ - phi σ p := div_mul_cancel₀ _ hdσ.ne'
@@ -317,7 +322,8 @@ theorem piecesBoundInv_of_mem_nodes (Rs : Fin k → List V) (R0 : Cell k) (T : C
 /-- An arc entering `C` from a point `p` of the root `R0` crosses the level of some bound of `C`
 that is not a bound of `R0`, at a point of `C`; so it is counted by the crossing number of every
 cell `A ⊇ C` at that level. -/
-theorem pieces_exists_entry (Rs : Fin k → List V) (R0 C : Cell k) (hinv : G.piecesBoundInv Rs R0 C)
+theorem pieces_exists_entry (Rs : Fin k → List V) (R0 C : Cell k)
+    (hinv : G.piecesBoundInv Rs R0 C)
     {p : Fin k → ℝ} (hp0 : p ∈ R0.carrier) (hp : p ∉ C.carrier) (v : V)
     (hv : G.pt v ∈ C.carrier) :
     ∃ τ, bnd C τ ≠ bnd R0 τ ∧
@@ -357,7 +363,9 @@ theorem pieces_exists_entry (Rs : Fin k → List V) (R0 C : Cell k) (hinv : G.pi
         show -X 0 j.1 (G.pt v) - -X 0 j.1 p = -(X 0 j.1 (G.pt v) - X 0 j.1 p) by ring,
         neg_div_neg_eq]
     rw [hc] at hmem
-    exact ⟨Or.inr ⟨lt_of_le_of_ne hvC.2 hgv, by change C.hi j < X 0 j.1 p; linarith⟩, hA hmem⟩
+    refine ⟨Or.inr ⟨lt_of_le_of_ne hvC.2 hgv, ?_⟩, hA hmem⟩
+    change C.hi j < X 0 j.1 p
+    linarith
 
 theorem pieces_card_bound_types : Fintype.card (StarIdx k × Bool) = 2 * (k - 1) := by
   rw [Fintype.card_prod, Fintype.card_bool, Fintype.card_subtype, Finset.filter_ne',
