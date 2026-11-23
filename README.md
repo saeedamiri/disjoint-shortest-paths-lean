@@ -9,9 +9,12 @@ The main theorem, `DSPP.thm_main` in `DSPP/Main.lean`, states two things:
   when the instance has k pairwise vertex-disjoint shortest paths.
 - **Size.** The work of the table is at most `f(k) · n^(6k²-4k-1)`.
 
-**Status:** work in progress. All definitions and all statements are in place. Some proofs
-still use `sorry`. Each Lean theorem is named after its label in the paper, which its docstring
-also gives. `DEVIATIONS.md` records where a Lean statement differs in form from the paper.
+**Status:** `DSPP.thm_main` and `DSPP.cor_undirected` are fully proved: `#print axioms` lists
+only `propext`, `Classical.choice` and `Quot.sound`. The single remaining `sorry` is in
+`crossNum_eq_curveCount` (`DSPP/Crossing.lean`). That lemma relates the combinatorial crossing
+count used here to the curve count of the paper; the main theorem does not use it. Each Lean
+theorem is named after its label in the paper, which its docstring also gives.
+`DEVIATIONS.md` records where a Lean statement differs in form from the paper.
 
 ## Building
 
