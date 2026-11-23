@@ -119,8 +119,8 @@ theorem wlen_suffix_le {P : List V} {a : V} {Q : List V} (h : (P ++ a :: Q).IsCh
   | nil => simp
   | cons x P ih =>
     have := ih h.tail
-    have h2 := G.wlen_cons_ge h
-    simp only [List.cons_append] at this h2 ⊢
+    have h2 : G.wlen (P ++ a :: Q) ≤ G.wlen (x :: (P ++ a :: Q)) := G.wlen_cons_ge h
+    simp only [List.cons_append]
     linarith
 
 theorem wlen_nonneg_of_chain {R : List V} (h : R.IsChain G.arc) : 0 ≤ G.wlen R := by
@@ -164,6 +164,10 @@ theorem le_dist_of {a b : V} (h : G.Reach a b) {x : ℝ}
     (hx : ∀ R, G.IsWalk R a b → x ≤ G.wlen R) : x ≤ G.dist a b :=
   le_csInf (G.walk_set_nonempty h) (by rintro y ⟨R, hR, rfl⟩; exact hx R hR)
 
+theorem getLast?_append_cons (A : List V) (u : V) (S : List V) :
+    (A ++ u :: S).getLast? = (u :: S).getLast? :=
+  List.getLast?_append_of_ne_nil A (List.cons_ne_nil u S)
+
 theorem isWalk_append {A : List V} {a u : V} {S : List V} {b : V}
     (h1 : G.IsWalk (A ++ [u]) a u) (h2 : G.IsWalk (u :: S) u b) :
     G.IsWalk (A ++ u :: S) a b := by
@@ -171,19 +175,20 @@ theorem isWalk_append {A : List V} {a u : V} {S : List V} {b : V}
   obtain ⟨_, hl2, hc2⟩ := h2
   refine ⟨?_, ?_, ?_⟩
   · cases A <;> simpa using hh1
-  · have : (A ++ u :: S).getLast? = (u :: S).getLast? := by
-      rw [List.getLast?_append]; simp
-    rw [this]; exact hl2
+  · rw [getLast?_append_cons]; exact hl2
   · exact List.isChain_split.mpr ⟨hc1, hc2⟩
 
 theorem walk_decomp {W : List V} {a u : V} (h : G.IsWalk W a u) :
     ∃ A, W = A ++ [u] ∧ G.IsWalk (A ++ [u]) a u := by
+  have h' := h
   obtain ⟨_, hl, _⟩ := h
   have hne : W ≠ [] := by rintro rfl; simp at hl
-  obtain ⟨A, x, rfl⟩ := (List.eq_nil_or_concat W).resolve_left hne
+  obtain ⟨A, x, hW⟩ := (List.eq_nil_or_concat W).resolve_left hne
+  rw [List.concat_eq_append] at hW
+  subst hW
   have : x = u := by simpa using hl
   subst this
-  exact ⟨A, rfl, h⟩
+  exact ⟨A, rfl, h'⟩
 
 /-- Triangle inequality along an arc. -/
 theorem dist_le_dist_add_len {a u v : V} (hu : G.Reach a u) (huv : G.arc u v) :
@@ -237,7 +242,7 @@ theorem dist_triangle {a u b : V} (h1 : G.Reach a u) (h2 : G.Reach u b) :
       G.wlen (W1 ++ W2.tail) = G.wlen W1 + G.wlen W2 := by
     intro W1 W2 hW1 hW2
     obtain ⟨A, rfl, hA⟩ := G.walk_decomp hW1
-    obtain ⟨h21, _, _⟩ := hW2
+    have h21 := hW2.1
     cases W2 with
     | nil => simp at h21
     | cons y S =>
@@ -287,9 +292,7 @@ theorem exists_path_of_walk {W : List V} {a b : V} (h : G.IsWalk W a b) :
       · obtain ⟨P, Q, hPQ⟩ := List.append_of_mem hx
         subst hPQ
         refine ⟨x :: Q, ⟨⟨by simp, ?_, ?_⟩, ?_⟩, ?_, ?_⟩
-        · have : (P ++ x :: Q).getLast? = (x :: Q).getLast? := by
-            rw [List.getLast?_append]; simp
-          rw [← this]; exact hl'
+        · rw [← getLast?_append_cons P x Q]; exact hl'
         · exact hc'.suffix (List.suffix_append P (x :: Q))
         · exact List.Nodup.sublist (List.suffix_append P (x :: Q)).sublist hnd'
         · have := G.wlen_suffix_le hc'
@@ -297,7 +300,8 @@ theorem exists_path_of_walk {W : List V} {a b : V} (h : G.IsWalk W a b) :
         · intro v hv
           rcases List.mem_cons.mp hv with rfl | hv
           · simp
-          · exact hsub' v (List.mem_append_right P (List.mem_cons_of_mem _ hv))
+          · exact List.mem_cons_of_mem _
+              (hsub' v (List.mem_append_right P (List.mem_cons_of_mem _ hv)))
       · obtain ⟨R'', rfl⟩ : ∃ R'', R' = c :: R'' := by
           cases R' with
           | nil => simp at hh'
@@ -318,6 +322,15 @@ theorem finite_paths (a b : V) : {R : List V | G.IsPath R a b}.Finite := by
   refine (List.finite_length_le V (Fintype.card V)).subset ?_
   intro R hR
   exact hR.2.length_le_card
+
+/-- A vertex reaches itself at distance `0`. -/
+theorem reach_self (a : V) : G.Reach a a := ⟨[a], by simp, by simp, by simp⟩
+
+theorem dist_self (a : V) : G.dist a a = 0 := by
+  refine le_antisymm ?_ (G.dist_nonneg a a)
+  have h : G.IsWalk [a] a a := ⟨by simp, by simp, by simp⟩
+  have := G.dist_le_wlen h
+  rwa [G.wlen_singleton] at this
 
 /-- With positive lengths the distance is attained by a path. -/
 theorem dist_eq_min_path {a b : V} (h : G.Reach a b) :
