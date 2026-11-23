@@ -37,7 +37,38 @@ noncomputable def Pi0 : Finset (Demand V k) := Finset.univ.image fun l => (l, G.
 
 /-- Text after def:S: the instance has a solution iff `S(V, Π_0)` (by lem:Di (b)). -/
 theorem sem_root_iff : G.Sem Finset.univ G.Pi0 ↔ G.HasSolution := by
-  sorry
+  have hmem : ∀ δ ∈ G.Pi0, ∃ l, δ = (l, G.s l, G.t l) := by
+    intro δ hδ
+    simp only [Pi0, Finset.mem_image, Finset.mem_univ, true_and] at hδ
+    obtain ⟨l, rfl⟩ := hδ
+    exact ⟨l, rfl⟩
+  have hl : ∀ l, ((l, G.s l, G.t l) : Demand V k) ∈ G.Pi0 := by
+    intro l
+    simp only [Pi0, Finset.mem_image, Finset.mem_univ, true_and]
+    exact ⟨l, rfl⟩
+  constructor
+  · rintro ⟨R, hR, hdisj⟩
+    refine ⟨fun l => R (l, G.s l, G.t l), fun i => ?_, fun i j hij v hv => ?_⟩
+    · obtain ⟨h1, h2, h3, _, h5⟩ := hR _ (hl i)
+      have hp : G.IsPath (R (i, G.s i, G.t i)) (G.s i) (G.t i) :=
+        ⟨⟨h1, h2, h5.imp fun _ _ h => h.1⟩, h3⟩
+      exact (G.lem_Di_b hp).mpr h5
+    · refine hdisj _ (hl i) _ (hl j) ?_ v hv
+      intro h
+      exact hij (by simpa using congrArg Prod.fst h)
+  · rintro ⟨P, hP, hdisj⟩
+    refine ⟨fun δ => P δ.1, fun δ hδ => ?_, fun δ hδ δ' hδ' hne v hv => ?_⟩
+    · obtain ⟨l, rfl⟩ := hmem δ hδ
+      have hsh := hP l
+      have hp := hsh.1
+      have hc := (G.lem_Di_b hp).mp hsh
+      exact ⟨hp.1.1, hp.1.2.1, hp.2, fun v _ => Finset.mem_univ v, hc⟩
+    · obtain ⟨l, rfl⟩ := hmem δ hδ
+      obtain ⟨l', rfl⟩ := hmem δ' hδ'
+      have : l ≠ l' := by
+        rintro rfl
+        exact hne rfl
+      exact hdisj l l' this v hv
 
 end Instance
 
