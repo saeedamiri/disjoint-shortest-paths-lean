@@ -51,8 +51,6 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
    (`crossPt`, linear interpolation) lies in `C`.
    - Why they agree: for generic `λ` a curve meets the hyperplane only in the interior of
      non-constant segments, at most once per segment, and exactly when the ends straddle `λ`.
-   - Where this is stated: the paper's count is also defined (`curve`, `curveCount`, using
-     `Set.ncard`), and `crossNum_eq_curveCount` states that the two agree for generic `λ`.
    - Arcs whose ends both lie outside `C` but whose crossing point lies in `C` are counted, as
      in the paper.
 
