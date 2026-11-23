@@ -15,4 +15,6 @@ import DSPP.Table
 import DSPP.Leaf
 import DSPP.Correctness
 import DSPP.Complexity
+import DSPP.Closure
+import DSPP.Examples
 import DSPP.Main
