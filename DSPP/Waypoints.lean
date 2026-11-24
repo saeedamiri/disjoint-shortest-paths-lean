@@ -110,6 +110,13 @@ theorem mem_flatten_ofFn {α : Type*} {n : ℕ} (f : Fin n → List α) {a : α}
     a ∈ (List.ofFn f).flatten ↔ ∃ i, a ∈ f i := by
   simp [List.mem_flatten, List.mem_ofFn]
 
+/-- Going along an edge and back is not a cycle route: for `ℓ = 2`, the segments `[(e, a)]` and
+`[(e, b)]` use `e` twice. -/
+theorem not_isCycleRoute_back (w : Fin 3 → V) (e : E) (a b : V) :
+    ¬ M.IsCycleRoute w ![[(e, a)], [(e, b)]] := by
+  rintro ⟨-, -, -, h⟩
+  simp [catW, edges, List.ofFn_succ] at h
+
 /-- A route whose consecutive waypoints differ has at least `ℓ` arcs or edges. -/
 theorem le_length_catW {w : Fin (ℓ + 1) → V} {R : Fin ℓ → List (E × V)} (hs : M.IsSegs w R)
     (hne : ∀ i : Fin ℓ, w i.castSucc ≠ w i.succ) : ℓ ≤ (catW R).length := by

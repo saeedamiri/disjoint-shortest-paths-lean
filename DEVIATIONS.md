@@ -240,7 +240,7 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     - Kind (ii), `IsCycleRoute`: `w ℓ = w 0`, the vertices of the closed walk are distinct,
       and its arcs or edges are distinct. This is a cycle. In an undirected graph with `ℓ = 2`,
       the walk from `w 0` to `w 1` and back along the same edge has distinct vertices but not
-      distinct edges, so it is not a cycle route.
+      distinct edges, so it is not a cycle route (`not_isCycleRoute_back`).
     - The reduction uses the fact that distinct vertices force distinct arcs or edges. This
       holds in every digraph (`ofArcs_cycle_hE`). In an undirected graph it holds for
       `ℓ ≥ 3` (`ofEdges_cycle_hE`). So `cor_waypoints` assumes `ℓ ≥ 3` for undirected cycles,

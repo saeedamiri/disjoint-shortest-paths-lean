@@ -264,7 +264,8 @@ theorem isEdgeSolution_backSol {V : Type*} (hk : 2 ≤ k) (M : MGraph V E) (s t 
 * for `IsLW i W` there is an `s_i`--`t_i` path of `M` whose arcs or edges lie in `W` and whose
   length is at most `ℓ(W)`.
 Then `M` has `k` pairwise arc- or edge-disjoint shortest paths if and only if `L` has `k`
-pairwise vertex-disjoint shortest paths. -/
+pairwise vertex-disjoint shortest paths.  Moreover `backSol` maps every solution of `L` to such
+paths of `M`. -/
 theorem hasSolution_iff {V : Type*} (hk : 2 ≤ k) (M : MGraph V E) (s t : Fin k → V)
     (α β : ℝ) (hα : 0 < α)
     (hfwd : ∀ i P, M.IsPath (s i) P (t i) → D.IsLW i (MGraph.edges P))
