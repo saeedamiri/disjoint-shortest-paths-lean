@@ -247,10 +247,12 @@ theorem mlen_projW (P : List (E' × (V ⊕ V))) :
     simp only [projW, List.map_cons, mlen_cons] at ih ⊢
     rw [ih]; rfl
 
+omit [DecidableEq V] in
 theorem map_snd_projW (P : List (E' × (V ⊕ V))) :
     (projW π P).map Prod.snd = (P.map Prod.snd).map proj := by
   simp [projW, Function.comp_def]
 
+omit [DecidableEq V] in
 theorem map_snd_liftW : ∀ (u : V) (W : List (E × V)),
     (liftW ρ u W).map Prod.snd = (W.map Prod.snd).map Sum.inl
   | _, [] => rfl
@@ -416,6 +418,375 @@ theorem vroute_iff (hσ : ∀ x, M.step (σ x) (π x) (τ x)) (w : Fin (ℓ + 1)
 
 end Split
 
+/-! ### The split sets of kinds (i) and (ii) -/
+
+section Kinds
+
+variable [DecidableEq V]
+
+/-- Kind (i): the split vertices are the inner waypoints `w 1, …, w (ℓ-1)`. -/
+noncomputable def innerW (w : Fin (ℓ + 1) → V) : Finset V :=
+  (Finset.univ.filter fun j : Fin (ℓ + 1) => j ≠ 0 ∧ j ≠ Fin.last ℓ).image w
+
+/-- Kind (ii): the split vertices are `w 0, …, w (ℓ-1)`. -/
+noncomputable def cycW (w : Fin (ℓ + 1) → V) : Finset V :=
+  Finset.univ.image fun i : Fin ℓ => w i.castSucc
+
+/-- The `2ℓ` terminals `w i⁺` and `w (i+1)⁻` of `G'` are distinct. -/
+theorem term_inj {w : Fin (ℓ + 1) → V} {Wset : Finset V}
+    (hcs : Function.Injective fun i : Fin ℓ => w i.castSucc)
+    (hsu : Function.Injective fun i : Fin ℓ => w i.succ)
+    (hmix : ∀ i j : Fin ℓ, w i.castSucc ∉ Wset → w i.castSucc ≠ w j.succ) :
+    Function.Injective (Sum.elim (fun i : Fin ℓ => plus Wset (w i.castSucc))
+      fun i : Fin ℓ => (Sum.inl (w i.succ) : V ⊕ V)) :=
+  Function.Injective.sumElim (fun i j h => hcs (by simpa using congrArg proj h))
+    (fun i j h => hsu (Sum.inl_injective h))
+    (fun i j h => (plus_eq_inl Wset h).elim fun hn he => hmix i j hn he)
+
+theorem mem_innerW {w : Fin (ℓ + 1) → V} (hw : Function.Injective w) (j : Fin (ℓ + 1)) :
+    w j ∈ innerW w ↔ j ≠ 0 ∧ j ≠ Fin.last ℓ := by
+  simp [innerW, hw.eq_iff]
+
+theorem castSucc_eq_zero {w : Fin (ℓ + 1) → V} (hw : Function.Injective w) {i : Fin ℓ}
+    (h : w i.castSucc ∉ innerW w) : i.castSucc = 0 := by
+  by_contra h0
+  exact h ((mem_innerW hw _).2 ⟨h0, (Fin.castSucc_lt_last i).ne⟩)
+
+theorem innerW_term_inj {w : Fin (ℓ + 1) → V} (hw : Function.Injective w) :
+    Function.Injective (Sum.elim (fun i : Fin ℓ => plus (innerW w) (w i.castSucc))
+      fun i : Fin ℓ => (Sum.inl (w i.succ) : V ⊕ V)) :=
+  term_inj (fun _ _ h => Fin.castSucc_injective _ (hw h)) (fun _ _ h => Fin.succ_injective _ (hw h))
+    (fun _ j hi he => Fin.succ_ne_zero j ((hw he).symm.trans (castSucc_eq_zero hw hi)))
+
+omit [DecidableEq V] in
+theorem succ_cyc {w : Fin (ℓ + 1) → V} (hl : w (Fin.last ℓ) = w 0) (i : Fin ℓ) :
+    ∃ j : Fin ℓ, w i.succ = w j.castSucc ∧ ((i : ℕ) + 1 < ℓ → (j : ℕ) = i + 1) ∧
+      ((i : ℕ) + 1 = ℓ → (j : ℕ) = 0) := by
+  have := i.2
+  by_cases h : (i : ℕ) + 1 < ℓ
+  · exact ⟨⟨i + 1, h⟩, congrArg w (Fin.ext (by simp)), fun _ => rfl, fun h' => by omega⟩
+  · have hi : (i : ℕ) + 1 = ℓ := by omega
+    refine ⟨⟨0, by omega⟩, ?_, fun h' => by omega, fun _ => rfl⟩
+    have e1 : i.succ = Fin.last ℓ := Fin.ext (by simp [hi])
+    have e2 : (⟨0, by omega⟩ : Fin ℓ).castSucc = 0 := Fin.ext (by simp)
+    rw [e1, e2, hl]
+
+theorem cyc_hyps {w : Fin (ℓ + 1) → V} (hℓ : 2 ≤ ℓ)
+    (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0) :
+    (∀ v ∈ cycW w, ∃ j : Fin ℓ, w j.succ = v) ∧ (∀ i : Fin ℓ, w i.castSucc ≠ w i.succ) ∧
+      Function.Injective fun i : Fin ℓ => w i.succ := by
+  refine ⟨fun v hv => ?_, fun i h => ?_, fun i j h => ?_⟩
+  · simp only [cycW, Finset.mem_image, Finset.mem_univ, true_and] at hv
+    obtain ⟨i, rfl⟩ := hv
+    have := i.2
+    by_cases h0 : (i : ℕ) = 0
+    · refine ⟨⟨ℓ - 1, by omega⟩, ?_⟩
+      have e1 : (⟨ℓ - 1, by omega⟩ : Fin ℓ).succ = Fin.last ℓ := Fin.ext (by simp; omega)
+      have e2 : i.castSucc = 0 := Fin.ext (by simp [h0])
+      rw [e1, e2, hl]
+    · exact ⟨⟨i - 1, by omega⟩, congrArg w (Fin.ext (by simp; omega))⟩
+  · obtain ⟨j, hj, h1, h2⟩ := succ_cyc hl i
+    have hv := congrArg Fin.val (hc (h.trans hj))
+    have := i.2
+    by_cases h' : (i : ℕ) + 1 < ℓ
+    · have := h1 h'; omega
+    · have := h2 (by omega); omega
+  · obtain ⟨a, ha, ha1, ha2⟩ := succ_cyc hl i
+    obtain ⟨b, hb, hb1, hb2⟩ := succ_cyc hl j
+    have hab := congrArg Fin.val (hc (ha.symm.trans (h.trans hb)))
+    have := i.2
+    have := j.2
+    apply Fin.ext
+    by_cases hi : (i : ℕ) + 1 < ℓ <;> by_cases hj : (j : ℕ) + 1 < ℓ
+    · have := ha1 hi; have := hb1 hj; omega
+    · have := ha1 hi; have := hb2 (by omega); omega
+    · have := ha2 (by omega); have := hb1 hj; omega
+    · have := ha2 (by omega); have := hb2 (by omega); omega
+
+theorem cycW_term_inj {w : Fin (ℓ + 1) → V} (hℓ : 2 ≤ ℓ)
+    (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0) :
+    Function.Injective (Sum.elim (fun i : Fin ℓ => plus (cycW w) (w i.castSucc))
+      fun i : Fin ℓ => (Sum.inl (w i.succ) : V ⊕ V)) :=
+  term_inj hc (cyc_hyps hℓ hc hl).2.2
+    (fun i _ hi => absurd (Finset.mem_image_of_mem _ (Finset.mem_univ i)) hi)
+
+theorem isPathRoute_iff_good {w : Fin (ℓ + 1) → V} (hℓ : 0 < ℓ) (hw : Function.Injective w)
+    (R : Fin ℓ → List (E × V)) : M.IsPathRoute w R ↔ M.Good w (innerW w) R := by
+  unfold IsPathRoute Good
+  rw [verts, List.nodup_cons]
+  have h0 : (⟨0, hℓ⟩ : Fin ℓ).castSucc = 0 := Fin.ext (by simp)
+  constructor
+  · rintro ⟨hs, h0', hnd⟩
+    refine ⟨hs, hnd, fun i hi => ?_⟩
+    rw [castSucc_eq_zero hw hi]; exact h0'
+  · rintro ⟨hs, hnd, hfree⟩
+    refine ⟨hs, ?_, hnd⟩
+    have := hfree ⟨0, hℓ⟩ (by rw [h0]; intro h; exact ((mem_innerW hw 0).1 h).1 rfl)
+    rwa [h0] at this
+
+theorem isCycleRoute_iff_good {w : Fin (ℓ + 1) → V} (hl : w (Fin.last ℓ) = w 0)
+    (R : Fin ℓ → List (E × V)) : M.IsCycleRoute w R ↔ M.Good w (cycW w) R := by
+  unfold IsCycleRoute Good
+  constructor
+  · rintro ⟨hs, -, hnd⟩
+    exact ⟨hs, hnd, fun i hi => absurd (Finset.mem_image_of_mem _ (Finset.mem_univ i)) hi⟩
+  · rintro ⟨hs, hnd, -⟩
+    exact ⟨hs, hl, hnd⟩
+
+variable {E' : Type*} {σ τ : E' → V} {π : E' → E} (ρ : V → E → V → E')
+
+/-- cor:waypoints (i), the reduction: for pairwise distinct `w 0, …, w ℓ`, a path through them
+of length `L` exists iff the distance check passes and `G'` (split at `w 1, …, w (ℓ-1)`) has
+pairwise vertex-disjoint shortest paths from `w i⁺` to `w (i+1)⁻`. -/
+theorem path_iff
+    (hρ : ∀ u e v, M.step u e v → σ (ρ u e v) = u ∧ τ (ρ u e v) = v ∧ π (ρ u e v) = e)
+    (hσ : ∀ x, M.step (σ x) (π x) (τ x)) (w : Fin (ℓ + 1) → V) (hℓ : 0 < ℓ)
+    (hw : Function.Injective w) :
+    (∃ R, M.IsPathRoute w R ∧ M.mlen (catW R) = M.wayLen w) ↔
+      M.splitCheck σ τ π (innerW w) w ∧
+        (M.splitG σ τ π (innerW w)).HasVertexSolution (fun i => plus (innerW w) (w i.castSucc))
+          (fun i => Sum.inl (w i.succ)) := by
+  rw [← M.vroute_iff hρ hσ w ?_ (fun i => hw.ne (show i.castSucc < i.succ from Fin.castSucc_lt_succ).ne)
+    (fun i j h => Fin.castSucc_injective _ (hw h))]
+  · exact exists_congr fun R => and_congr_left' (M.isPathRoute_iff_good hℓ hw R)
+  · intro v hv
+    simp only [innerW, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and] at hv
+    obtain ⟨j, ⟨hj0, -⟩, rfl⟩ := hv
+    exact ⟨j.pred hj0, by rw [Fin.succ_pred]⟩
+
+/-- cor:waypoints (ii), the reduction: for `w ℓ = w 0` and pairwise distinct
+`w 0, …, w (ℓ-1)`, a closed route through them in this cyclic order with distinct vertices of
+length `L` exists iff the distance check passes and `G'` (split at `w 0, …, w (ℓ-1)`) has
+pairwise vertex-disjoint shortest paths from `w i⁺` to `w (i+1)⁻`. -/
+theorem cycle_iff
+    (hρ : ∀ u e v, M.step u e v → σ (ρ u e v) = u ∧ τ (ρ u e v) = v ∧ π (ρ u e v) = e)
+    (hσ : ∀ x, M.step (σ x) (π x) (τ x)) (w : Fin (ℓ + 1) → V) (hℓ : 2 ≤ ℓ)
+    (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0) :
+    (∃ R, M.IsCycleRoute w R ∧ M.mlen (catW R) = M.wayLen w) ↔
+      M.splitCheck σ τ π (cycW w) w ∧
+        (M.splitG σ τ π (cycW w)).HasVertexSolution (fun i => plus (cycW w) (w i.castSucc))
+          (fun i => Sum.inl (w i.succ)) := by
+  obtain ⟨hW, hne, -⟩ := cyc_hyps hℓ hc hl
+  rw [← M.vroute_iff hρ hσ w hW hne hc]
+  exact exists_congr fun R => and_congr_left' (M.isCycleRoute_iff_good hl R)
+
+end Kinds
+
+/-! ### Arc presentations of digraphs and undirected graphs -/
+
+section Pres
+
+variable (len : E → ℝ) (hpos : ∀ e, 0 < len e)
+
+theorem ofArcs_hσ (src tgt : E → V) :
+    ∀ x, (ofArcs src tgt len hpos).step (src x) (id x) (tgt x) :=
+  fun _ => ⟨rfl, rfl⟩
+
+theorem ofArcs_hρ (src tgt : E → V) : ∀ u e v, (ofArcs src tgt len hpos).step u e v →
+    src ((fun _ e _ => e : V → E → V → E) u e v) = u ∧
+      tgt ((fun _ e _ => e : V → E → V → E) u e v) = v ∧
+      id ((fun _ e _ => e : V → E → V → E) u e v) = e :=
+  fun _ _ _ h => ⟨h.1, h.2, rfl⟩
+
+/-- An edge `e` taken from `u` to `v`: `inl e` from `fst e` to `snd e`, otherwise `inr e`. -/
+noncomputable def orient (fst snd : E → V) (u : V) (e : E) (v : V) : E ⊕ E :=
+  if fst e = u ∧ snd e = v then Sum.inl e else Sum.inr e
+
+theorem ofEdges_hσ (fst snd : E → V) : ∀ x, (ofEdges fst snd len hpos).step
+    (Sum.elim fst snd x) (Sum.elim id id x) (Sum.elim snd fst x) := by
+  rintro (e | e)
+  · exact Or.inl ⟨rfl, rfl⟩
+  · exact Or.inr ⟨rfl, rfl⟩
+
+theorem ofEdges_hρ (fst snd : E → V) : ∀ u e v, (ofEdges fst snd len hpos).step u e v →
+    Sum.elim fst snd (orient fst snd u e v) = u ∧ Sum.elim snd fst (orient fst snd u e v) = v ∧
+      Sum.elim id id (orient fst snd u e v) = e := by
+  intro u e v h
+  unfold orient
+  by_cases hh : fst e = u ∧ snd e = v
+  · rw [if_pos hh]; exact ⟨hh.1, hh.2, rfl⟩
+  · have h' : fst e = v ∧ snd e = u := h.resolve_left hh
+    rw [if_neg hh]; exact ⟨h'.2, h'.1, rfl⟩
+
+end Pres
+
 end MGraph
+
+open MGraph
+
+section Inst
+
+variable {V E E' : Type*} [Fintype V] [DecidableEq V] [Fintype E'] {ℓ : ℕ}
+
+/-- The instance of thm:main for `G'`: the pairs `(w i⁺, w (i+1)⁻)`, one arc of minimum length
+per ordered pair of vertices. -/
+noncomputable def splitInst (M : MGraph V E) (σ τ : E' → V) (π : E' → E) (Wset : Finset V)
+    (w : Fin (ℓ + 1) → V)
+    (hinj : Function.Injective (Sum.elim (fun i : Fin ℓ => plus Wset (w i.castSucc))
+      fun i : Fin ℓ => (Sum.inl (w i.succ) : V ⊕ V))) (hk : 2 ≤ ℓ) : Instance (V ⊕ V) ℓ :=
+  simpleInst (fun x => plus Wset (σ x)) (fun x => Sum.inl (τ x)) (fun x => M.len (π x))
+    (fun x => M.len_pos (π x)) _ _ hinj hk
+
+end Inst
+
+section Named
+
+variable {V E : Type*} [Fintype V] [DecidableEq V] [Fintype E] {ℓ : ℕ}
+variable (len : E → ℝ) (hpos : ∀ e, 0 < len e) (w : Fin (ℓ + 1) → V)
+
+/-- (i) in a digraph: the instance of thm:main. -/
+noncomputable def arcPathInst (src tgt : E → V) (hw : Function.Injective w) (hk : 2 ≤ ℓ) :
+    Instance (V ⊕ V) ℓ :=
+  splitInst (ofArcs src tgt len hpos) src tgt id (innerW w) w (innerW_term_inj hw) hk
+
+/-- (ii) in a digraph: the instance of thm:main. -/
+noncomputable def arcCycleInst (src tgt : E → V) (hk : 2 ≤ ℓ)
+    (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0) :
+    Instance (V ⊕ V) ℓ :=
+  splitInst (ofArcs src tgt len hpos) src tgt id (cycW w) w (cycW_term_inj hk hc hl) hk
+
+/-- (i) in an undirected graph: the instance of thm:main (both orientations of every edge). -/
+noncomputable def edgePathInst (fst snd : E → V) (hw : Function.Injective w) (hk : 2 ≤ ℓ) :
+    Instance (V ⊕ V) ℓ :=
+  splitInst (ofEdges fst snd len hpos) (Sum.elim fst snd) (Sum.elim snd fst) (Sum.elim id id)
+    (innerW w) w (innerW_term_inj hw) hk
+
+/-- (ii) in an undirected graph: the instance of thm:main (both orientations of every edge). -/
+noncomputable def edgeCycleInst (fst snd : E → V) (hk : 2 ≤ ℓ)
+    (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0) :
+    Instance (V ⊕ V) ℓ :=
+  splitInst (ofEdges fst snd len hpos) (Sum.elim fst snd) (Sum.elim snd fst) (Sum.elim id id)
+    (cycW w) w (cycW_term_inj hk hc hl) hk
+
+end Named
+
+/-- cor:waypoints.  Fix `ℓ ≥ 2`.  Let `G` be a digraph (`ofArcs src tgt`) or an undirected graph
+(`ofEdges fst snd`) with positive lengths, let `w 0, …, w ℓ` be vertices, and let
+`L = wayLen w = ∑ dist (w i) (w (i+1))`.
+* Every route through `w 0, …, w ℓ` in this order, of any of the three kinds, has length at
+  least `L`.
+* (i) If `w 0, …, w ℓ` are pairwise distinct: a path through them in this order of length `L`
+  exists iff the distance check passes and the table of thm:main accepts on `G'` split at
+  `w 1, …, w (ℓ-1)`.  Its work is at most `f ℓ · n ^ (6ℓ²-4ℓ-1)`.
+* (ii) If `w ℓ = w 0`, `w 0, …, w (ℓ-1)` are pairwise distinct, and `ℓ ≥ 3` for an undirected
+  graph: the same for a cycle through `w 0, …, w (ℓ-1)` in this cyclic order, with `G'` split at
+  `w 0, …, w (ℓ-1)`.
+* (iii) If `w i ≠ w (i+1)` for every `i`: a walk through `w 0, …, w ℓ` in this order of length
+  `L` that uses every arc or edge at most once exists iff the table of cor:edgedisjoint accepts
+  for the pairs `(w i, w (i+1))`.  Its work is at most `g ℓ · n ^ (2(6ℓ²-4ℓ-1))`.
+When some `w (i+1)` is not reachable from `w i`, no route exists, the distance is `0` by
+convention, and both sides of each equivalence are false. -/
+theorem cor_waypoints :
+    ∃ f g : ℕ → ℕ, ∀ (ℓ : ℕ) [NeZero ℓ] (hℓ : 2 ≤ ℓ) (V E : Type) [Fintype V] [DecidableEq V]
+      [Fintype E] [DecidableEq E] (len : E → ℝ) (hpos : ∀ e, 0 < len e) (w : Fin (ℓ + 1) → V),
+    (∀ src tgt : E → V,
+      (∀ R, (ofArcs src tgt len hpos).IsSegs w R →
+        (ofArcs src tgt len hpos).wayLen w ≤ (ofArcs src tgt len hpos).mlen (catW R)) ∧
+      (∀ hw : Function.Injective w,
+        ((∃ R, (ofArcs src tgt len hpos).IsPathRoute w R ∧
+            (ofArcs src tgt len hpos).mlen (catW R) = (ofArcs src tgt len hpos).wayLen w) ↔
+          (ofArcs src tgt len hpos).splitCheck src tgt id (innerW w) w ∧
+            (arcPathInst len hpos w src tgt hw hℓ).Tab Finset.univ
+              (arcPathInst len hpos w src tgt hw hℓ).Pi0) ∧
+        (arcPathInst len hpos w src tgt hw hℓ).splitWork +
+            (arcPathInst len hpos w src tgt hw hℓ).leafWork ≤
+          f ℓ * Fintype.card V ^ (6 * ℓ ^ 2 - 4 * ℓ - 1)) ∧
+      (∀ (hc : Function.Injective fun i : Fin ℓ => w i.castSucc) (hl : w (Fin.last ℓ) = w 0),
+        ((∃ R, (ofArcs src tgt len hpos).IsCycleRoute w R ∧
+            (ofArcs src tgt len hpos).mlen (catW R) = (ofArcs src tgt len hpos).wayLen w) ↔
+          (ofArcs src tgt len hpos).splitCheck src tgt id (cycW w) w ∧
+            (arcCycleInst len hpos w src tgt hℓ hc hl).Tab Finset.univ
+              (arcCycleInst len hpos w src tgt hℓ hc hl).Pi0) ∧
+        (arcCycleInst len hpos w src tgt hℓ hc hl).splitWork +
+            (arcCycleInst len hpos w src tgt hℓ hc hl).leafWork ≤
+          f ℓ * Fintype.card V ^ (6 * ℓ ^ 2 - 4 * ℓ - 1)) ∧
+      ((∀ i : Fin ℓ, w i.castSucc ≠ w i.succ) →
+        ((∃ R, (ofArcs src tgt len hpos).IsTrailRoute w R ∧
+            (ofArcs src tgt len hpos).mlen (catW R) = (ofArcs src tgt len hpos).wayLen w) ↔
+          (arcReduced src tgt len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).Tab
+            Finset.univ
+            (arcReduced src tgt len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).Pi0) ∧
+        (arcReduced src tgt len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).splitWork +
+            (arcReduced src tgt len hpos ℓ hℓ (fun i => w i.castSucc)
+              (fun i => w i.succ)).leafWork ≤
+          g ℓ * Fintype.card V ^ (2 * (6 * ℓ ^ 2 - 4 * ℓ - 1)))) ∧
+    (∀ fst snd : E → V,
+      (∀ R, (ofEdges fst snd len hpos).IsSegs w R →
+        (ofEdges fst snd len hpos).wayLen w ≤ (ofEdges fst snd len hpos).mlen (catW R)) ∧
+      (∀ hw : Function.Injective w,
+        ((∃ R, (ofEdges fst snd len hpos).IsPathRoute w R ∧
+            (ofEdges fst snd len hpos).mlen (catW R) = (ofEdges fst snd len hpos).wayLen w) ↔
+          (ofEdges fst snd len hpos).splitCheck (Sum.elim fst snd) (Sum.elim snd fst)
+              (Sum.elim id id) (innerW w) w ∧
+            (edgePathInst len hpos w fst snd hw hℓ).Tab Finset.univ
+              (edgePathInst len hpos w fst snd hw hℓ).Pi0) ∧
+        (edgePathInst len hpos w fst snd hw hℓ).splitWork +
+            (edgePathInst len hpos w fst snd hw hℓ).leafWork ≤
+          f ℓ * Fintype.card V ^ (6 * ℓ ^ 2 - 4 * ℓ - 1)) ∧
+      (3 ≤ ℓ → ∀ (hc : Function.Injective fun i : Fin ℓ => w i.castSucc)
+          (hl : w (Fin.last ℓ) = w 0),
+        ((∃ R, (ofEdges fst snd len hpos).IsCycleRoute w R ∧
+            (ofEdges fst snd len hpos).mlen (catW R) = (ofEdges fst snd len hpos).wayLen w) ↔
+          (ofEdges fst snd len hpos).splitCheck (Sum.elim fst snd) (Sum.elim snd fst)
+              (Sum.elim id id) (cycW w) w ∧
+            (edgeCycleInst len hpos w fst snd hℓ hc hl).Tab Finset.univ
+              (edgeCycleInst len hpos w fst snd hℓ hc hl).Pi0) ∧
+        (edgeCycleInst len hpos w fst snd hℓ hc hl).splitWork +
+            (edgeCycleInst len hpos w fst snd hℓ hc hl).leafWork ≤
+          f ℓ * Fintype.card V ^ (6 * ℓ ^ 2 - 4 * ℓ - 1)) ∧
+      ((∀ i : Fin ℓ, w i.castSucc ≠ w i.succ) →
+        ((∃ R, (ofEdges fst snd len hpos).IsTrailRoute w R ∧
+            (ofEdges fst snd len hpos).mlen (catW R) = (ofEdges fst snd len hpos).wayLen w) ↔
+          (edgeReduced fst snd len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).Tab
+            Finset.univ
+            (edgeReduced fst snd len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).Pi0) ∧
+        (edgeReduced fst snd len hpos ℓ hℓ (fun i => w i.castSucc) (fun i => w i.succ)).splitWork +
+            (edgeReduced fst snd len hpos ℓ hℓ (fun i => w i.castSucc)
+              (fun i => w i.succ)).leafWork ≤
+          g ℓ * Fintype.card V ^ (2 * (6 * ℓ ^ 2 - 4 * ℓ - 1)))) := by
+  obtain ⟨f, hf⟩ := thm_main_multigraph
+  obtain ⟨_, g, hd, hu⟩ := cor_edgedisjoint
+  refine ⟨fun ℓ => f ℓ * 2 ^ (6 * ℓ ^ 2 - 4 * ℓ - 1), g, ?_⟩
+  intro ℓ _ hℓ V E _ _ _ _ len hpos w
+  have key : ∀ (E' : Type) [Fintype E'] (M : MGraph V E) (σ τ : E' → V) (π : E' → E)
+      (Wset : Finset V) (hinj : Function.Injective (Sum.elim
+        (fun i : Fin ℓ => plus Wset (w i.castSucc)) fun i : Fin ℓ => (Sum.inl (w i.succ) : V ⊕ V))),
+      ((splitInst M σ τ π Wset w hinj hℓ).Tab Finset.univ
+          (splitInst M σ τ π Wset w hinj hℓ).Pi0 ↔
+        (M.splitG σ τ π Wset).HasVertexSolution (fun i => plus Wset (w i.castSucc))
+          (fun i => Sum.inl (w i.succ))) ∧
+      (splitInst M σ τ π Wset w hinj hℓ).splitWork +
+          (splitInst M σ τ π Wset w hinj hℓ).leafWork ≤
+        f ℓ * 2 ^ (6 * ℓ ^ 2 - 4 * ℓ - 1) * Fintype.card V ^ (6 * ℓ ^ 2 - 4 * ℓ - 1) := by
+    intro E' _ M σ τ π Wset hinj
+    obtain ⟨h1, h2⟩ := hf ℓ (V ⊕ V) E' (fun x => plus Wset (σ x)) (fun x => Sum.inl (τ x))
+      (fun x => M.len (π x)) (fun x => M.len_pos (π x)) _ _ hinj hℓ
+    refine ⟨h1, h2.trans (le_of_eq ?_)⟩
+    rw [Fintype.card_sum, ← two_mul, mul_pow, mul_assoc]
+  have h0 : 0 < ℓ := by omega
+  refine ⟨fun src tgt => ⟨fun R hR => (ofArcs src tgt len hpos).wayLen_le hR, fun hw => ?_,
+    fun hc hl => ?_, fun hne => ?_⟩,
+    fun fst snd => ⟨fun R hR => (ofEdges fst snd len hpos).wayLen_le hR,
+    fun hw => ?_, fun _ hc hl => ?_, fun hne => ?_⟩⟩
+  · obtain ⟨htab, hwork⟩ := key E _ src tgt id (innerW w) (innerW_term_inj hw)
+    exact ⟨((ofArcs src tgt len hpos).path_iff _ (ofArcs_hρ len hpos src tgt)
+      (ofArcs_hσ len hpos src tgt) w h0 hw).trans (and_congr_right' htab.symm), hwork⟩
+  · obtain ⟨htab, hwork⟩ := key E _ src tgt id (cycW w) (cycW_term_inj hℓ hc hl)
+    exact ⟨((ofArcs src tgt len hpos).cycle_iff _ (ofArcs_hρ len hpos src tgt)
+      (ofArcs_hσ len hpos src tgt) w hℓ hc hl).trans (and_congr_right' htab.symm), hwork⟩
+  · obtain ⟨h1, -, -, h4⟩ := hd ℓ hℓ V E src tgt len hpos (fun i => w i.castSucc)
+      (fun i => w i.succ) hne
+    exact ⟨((ofArcs src tgt len hpos).trail_iff w).trans h1.symm, h4⟩
+  · obtain ⟨htab, hwork⟩ := key (E ⊕ E) _ (Sum.elim fst snd) (Sum.elim snd fst)
+      (Sum.elim id id) (innerW w) (innerW_term_inj hw)
+    exact ⟨((ofEdges fst snd len hpos).path_iff _ (ofEdges_hρ len hpos fst snd)
+      (ofEdges_hσ len hpos fst snd) w h0 hw).trans (and_congr_right' htab.symm), hwork⟩
+  · obtain ⟨htab, hwork⟩ := key (E ⊕ E) _ (Sum.elim fst snd) (Sum.elim snd fst)
+      (Sum.elim id id) (cycW w) (cycW_term_inj hℓ hc hl)
+    exact ⟨((ofEdges fst snd len hpos).cycle_iff _ (ofEdges_hρ len hpos fst snd)
+      (ofEdges_hσ len hpos fst snd) w hℓ hc hl).trans (and_congr_right' htab.symm), hwork⟩
+  · obtain ⟨h1, -, -, h4⟩ := hu ℓ hℓ V E fst snd len hpos (fun i => w i.castSucc)
+      (fun i => w i.succ) hne
+    exact ⟨((ofEdges fst snd len hpos).trail_iff w).trans h1.symm, h4⟩
 
 end DSPP
