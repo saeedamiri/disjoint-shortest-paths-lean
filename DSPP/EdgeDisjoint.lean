@@ -14,6 +14,13 @@ namespace DSPP
 
 variable {V E : Type*} {k : ℕ}
 
+/-- A multigraph is acyclic: its closed walks are the one-vertex walks. -/
+def MGraph.Acyclic (M : MGraph V E) : Prop := ∀ a W, M.IsWalk a W a → W = []
+
+/-- An instance is acyclic: no vertex reaches itself along one or more arcs. -/
+def Instance.Acyclic {U : Type*} [Fintype U] [DecidableEq U] (G : Instance U k) : Prop :=
+  ∀ v, ¬ Relation.TransGen G.arc v v
+
 /-! ### prop:arcdisjoint -/
 
 /-- prop:arcdisjoint, the digraph `L`: arcs `(x_a, x_b)` of length `ℓ(b)` for `a ≠ b` with
@@ -66,10 +73,14 @@ variable [Fintype E] [DecidableEq E]
 of different pairs may coincide.  Then `G` has pairwise arc-disjoint paths, each a shortest
 `s_i`--`t_i` path, iff the line digraph `L` (`arcLine`) has pairwise vertex-disjoint paths, each a
 shortest `σ_i`--`τ_i` path.  `L` is an `Instance`, so its lengths are positive and its `2k`
-terminals are distinct; it has `|E| + 2k` vertices.  (`Instance` requires `k ≥ 2`.) -/
+terminals are distinct; it has `|E| + 2k` vertices.  (`Instance` requires `k ≥ 2`.)  Every solution `Q` of `L` gives
+such paths of `G`, `LineData.backSol G s t Q`. -/
 theorem prop_arcdisjoint (hk : 2 ≤ k) (hst : ∀ i, s i ≠ t i) :
-    ((MGraph.ofArcs src tgt len hpos).HasEdgeSolution s t ↔
+    (((MGraph.ofArcs src tgt len hpos).HasEdgeSolution s t ↔
       ((arcLine src tgt len hpos s t).inst hk).HasSolution) ∧
+      ∀ Q, ((arcLine src tgt len hpos s t).inst hk).IsSolution Q →
+        (MGraph.ofArcs src tgt len hpos).IsEdgeSolution s t
+          (LineData.backSol (MGraph.ofArcs src tgt len hpos) s t Q)) ∧
     Fintype.card (E ⊕ (Fin k ⊕ Fin k)) = Fintype.card E + 2 * k := by
   refine ⟨?_, LineData.card_vertices⟩
   set M := MGraph.ofArcs src tgt len hpos
@@ -100,6 +111,49 @@ theorem prop_arcdisjoint (hk : 2 ≤ k) (hst : ∀ i, s i ≠ t i) :
     · refine hle.trans (le_of_eq ?_)
       rw [M.mlen_eq_sum]
       simp [M, MGraph.ofArcs, MGraph.edges, Function.comp_def]
+
+
+omit [Fintype E] [DecidableEq E] in
+/-- Along the arcs of `L`, a vertex `x_a` never reaches a source `σ_i`, and it reaches `x_b` only
+if the digraph has a non-empty walk from the tail of `a` to the tail of `b`. -/
+theorem arcLine_transGen {a : E} {y : E ⊕ (Fin k ⊕ Fin k)}
+    (h : Relation.TransGen (arcLine src tgt len hpos s t).larc (.inl a) y) :
+    (∀ i, y ≠ .inr (.inl i)) ∧ ∀ b, y = .inl b →
+      ∃ W, W ≠ [] ∧ (MGraph.ofArcs src tgt len hpos).IsWalk (src a) W (src b) := by
+  induction h with
+  | @single y hab =>
+    rcases y with b | j | j
+    · have hab' : a ≠ b ∧ tgt a = src b := hab
+      refine ⟨(fun _ h => by cases h), fun b' hb => ?_⟩
+      obtain rfl := Sum.inl_injective hb
+      exact ⟨[(a, tgt a)], by simp, ⟨rfl, rfl⟩, hab'.2⟩
+    · exact (hab : False).elim
+    · exact ⟨(fun _ h => by cases h), fun _ hb => by cases hb⟩
+  | @tail c y _ hbc ih =>
+    rcases c with c | i | i
+    · rcases y with b | j | j
+      · obtain ⟨W, -, hw⟩ := ih.2 c rfl
+        have hbc' : c ≠ b ∧ tgt c = src b := hbc
+        refine ⟨(fun _ h => by cases h), fun b' hb => ?_⟩
+        obtain rfl := Sum.inl_injective hb
+        exact ⟨W ++ [(c, tgt c)], by simp,
+          (MGraph.ofArcs src tgt len hpos).isWalk_append hw ⟨⟨rfl, rfl⟩, hbc'.2⟩⟩
+      · exact (hbc : False).elim
+      · exact ⟨(fun _ h => by cases h), fun _ hb => by cases hb⟩
+    · exact absurd rfl (ih.1 i)
+    · rcases y with b | j | j <;> exact (hbc : False).elim
+
+/-- prop:arcdisjoint, last part: `L` is acyclic if `G` is. -/
+theorem prop_arcdisjoint_acyclic (hk : 2 ≤ k) (hG : (MGraph.ofArcs src tgt len hpos).Acyclic) :
+    ((arcLine src tgt len hpos s t).inst hk).Acyclic := by
+  intro v hv
+  rcases v with a | i | i
+  · obtain ⟨W, hW, hw⟩ := (arcLine_transGen src tgt len hpos s t hv).2 a rfl
+    exact hW (hG _ _ hw)
+  · obtain ⟨b, -, hb⟩ := Relation.TransGen.tail'_iff.1 hv
+    rcases b with b | j | j <;> exact hb
+  · obtain ⟨b, hb, -⟩ := Relation.TransGen.head'_iff.1 hv
+    rcases b with b | j | j <;> exact hb
 
 end Arc
 
@@ -206,8 +260,11 @@ pairwise vertex-disjoint paths, each a shortest `σ_i`--`τ_i` path.  `L` is an 
 lengths are positive and its `2k` terminals are distinct; it has `|E| + 2k` vertices.
 (`Instance` requires `k ≥ 2`.) -/
 theorem prop_edgedisjoint (hk : 2 ≤ k) (hst : ∀ i, s i ≠ t i) :
-    ((MGraph.ofEdges fst snd len hpos).HasEdgeSolution s t ↔
+    (((MGraph.ofEdges fst snd len hpos).HasEdgeSolution s t ↔
       ((edgeLine fst snd len hpos s t).inst hk).HasSolution) ∧
+      ∀ Q, ((edgeLine fst snd len hpos s t).inst hk).IsSolution Q →
+        (MGraph.ofEdges fst snd len hpos).IsEdgeSolution s t
+          (LineData.backSol (MGraph.ofEdges fst snd len hpos) s t Q)) ∧
     Fintype.card (E ⊕ (Fin k ⊕ Fin k)) = Fintype.card E + 2 * k := by
   refine ⟨?_, LineData.card_vertices⟩
   set M := MGraph.ofEdges fst snd len hpos

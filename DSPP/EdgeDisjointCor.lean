@@ -14,6 +14,7 @@ there is no machine model: running time is stated as the work of the table (DEVI
 import DSPP.EdgeDisjoint
 import DSPP.Trim
 import DSPP.Main
+import DSPP.Extraction
 
 open Classical
 
@@ -94,23 +95,32 @@ def edgeKept : E → Prop :=
 def edgeTrim : MGraph V {e // edgeKept fst snd len hpos k e} :=
   MGraph.ofEdges (fun e => fst e.1) (fun e => snd e.1) (fun e => len e.1) (fun e => hpos e.1)
 
+omit [Fintype E] [DecidableEq E] in
+/-- Edges with the same ends join the same vertices. -/
+theorem edge_hsub {u w : V} {e f : E} (h : (MGraph.ofEdges fst snd len hpos).step u e w)
+    (hf : s(fst f, snd f) = s(fst e, snd e)) : (MGraph.ofEdges fst snd len hpos).step u f w := by
+  rcases Sym2.eq_iff.1 hf with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases h with ⟨h3, h4⟩ | ⟨h3, h4⟩
+  · exact Or.inl ⟨h1.trans h3, h2.trans h4⟩
+  · exact Or.inr ⟨h1.trans h3, h2.trans h4⟩
+  · exact Or.inr ⟨h1.trans h4, h2.trans h3⟩
+  · exact Or.inl ⟨h1.trans h4, h2.trans h3⟩
+
+omit [Fintype E] [DecidableEq E] in
+/-- A loop joins a vertex to itself. -/
+theorem edge_hloop {u w : V} {e : E} (h : (MGraph.ofEdges fst snd len hpos).step u e w)
+    (hl : Sym2.IsDiag s(fst e, snd e)) : u = w := by
+  have hd : fst e = snd e := Sym2.mk_isDiag_iff.1 hl
+  rcases h with ⟨h3, h4⟩ | ⟨h3, h4⟩
+  · rw [← h3, ← h4, hd]
+  · rw [← h3, ← h4, hd]
+
 /-- Trimming the edges does not change the answer of the edge-disjoint problem. -/
 theorem edge_trim_iff (hk : 1 ≤ k) (s t : Fin k → V) :
     (MGraph.ofEdges fst snd len hpos).HasEdgeSolution s t ↔
-      (edgeTrim fst snd len hpos k).HasEdgeSolution s t := by
-  refine MGraph.hasEdgeSolution_trim_iff (MGraph.ofEdges fst snd len hpos)
-    (pr := fun e => s(fst e, snd e)) (loopP := Sym2.IsDiag) ?_ ?_ s t hk
-  · intro u w e f h hf
-    rcases Sym2.eq_iff.1 hf with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rcases h with ⟨h3, h4⟩ | ⟨h3, h4⟩
-    · exact Or.inl ⟨h1.trans h3, h2.trans h4⟩
-    · exact Or.inr ⟨h1.trans h3, h2.trans h4⟩
-    · exact Or.inr ⟨h1.trans h4, h2.trans h3⟩
-    · exact Or.inl ⟨h1.trans h4, h2.trans h3⟩
-  · intro u w e h hl
-    have hd : fst e = snd e := Sym2.mk_isDiag_iff.1 hl
-    rcases h with ⟨h3, h4⟩ | ⟨h3, h4⟩
-    · rw [← h3, ← h4, hd]
-    · rw [← h3, ← h4, hd]
+      (edgeTrim fst snd len hpos k).HasEdgeSolution s t :=
+  MGraph.hasEdgeSolution_trim_iff (MGraph.ofEdges fst snd len hpos)
+    (pr := fun e => s(fst e, snd e)) (loopP := Sym2.IsDiag)
+    (edge_hsub fst snd len hpos) (edge_hloop fst snd len hpos) s t hk
 
 /-- The trimmed graph has at most `k (n choose 2)` edges. -/
 theorem card_edgeKept_le [Fintype V] [DecidableEq V] :
@@ -188,7 +198,7 @@ theorem cor_edgedisjoint :
     · rw [hcor k _ (arcReduced src tgt len hpos k hk s t), arc_trim_iff src tgt len hpos k
         (by omega) s t]
       exact ((prop_arcdisjoint (fun e : {e // arcKept src tgt len hpos k e} => src e.1)
-        (fun e => tgt e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1).symm
+        (fun e => tgt e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1.1).symm
     · refine hw.trans ?_
       rw [mul_assoc]
       exact Nat.mul_le_mul_left _ (pow_le_of_le_sq _ hn hN)
@@ -208,9 +218,95 @@ theorem cor_edgedisjoint :
     · rw [hcor k _ (edgeReduced fst snd len hpos k hk s t), edge_trim_iff fst snd len hpos k
         (by omega) s t]
       exact ((prop_edgedisjoint (fun e : {e // edgeKept fst snd len hpos k e} => fst e.1)
-        (fun e => snd e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1).symm
+        (fun e => snd e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1.1).symm
     · refine hw.trans ?_
       rw [mul_assoc]
       exact Nat.mul_le_mul_left _ (pow_le_of_le_sq _ hn hN)
+
+
+/-! ### Output of a solution -/
+
+section ArcBack
+
+variable [Fintype E] [DecidableEq E] (src tgt : E → V) (len : E → ℝ) (hpos : ∀ e, 0 < len e)
+  (k : ℕ)
+
+/-- The arc-disjoint paths of the digraph read off a solution `Q` of the reduced instance
+`arcReduced`: the paths `LineData.backSol` of the trimmed digraph, with their arcs read as arcs
+of the digraph. -/
+noncomputable def arcBack (s t : Fin k → V)
+    (Q : Fin k → List ({e // arcKept src tgt len hpos k e} ⊕ (Fin k ⊕ Fin k))) :
+    Fin k → List (E × V) :=
+  fun i => (LineData.backSol (arcTrim src tgt len hpos k) s t Q i).map (Prod.map Subtype.val id)
+
+/-- `arcBack` maps every solution of `arcReduced` to `k` pairwise arc-disjoint shortest paths of
+the digraph. -/
+theorem isEdgeSolution_arcBack (hk : 2 ≤ k) (s t : Fin k → V) (hst : ∀ i, s i ≠ t i)
+    (Q : Fin k → List ({e // arcKept src tgt len hpos k e} ⊕ (Fin k ⊕ Fin k)))
+    (hQ : (arcReduced src tgt len hpos k hk s t).IsSolution Q) :
+    (MGraph.ofArcs src tgt len hpos).IsEdgeSolution s t (arcBack src tgt len hpos k s t Q) :=
+  MGraph.isEdgeSolution_of_trim (MGraph.ofArcs src tgt len hpos)
+    (pr := fun e => (src e, tgt e)) (loopP := fun p => p.1 = p.2)
+    (fun h hf => by
+      simp only [Prod.mk.injEq] at hf
+      exact ⟨hf.1.trans h.1, hf.2.trans h.2⟩)
+    (fun h hl => h.1.symm.trans (hl.trans h.2)) s t (by omega)
+    ((prop_arcdisjoint (fun e : {e // arcKept src tgt len hpos k e} => src e.1)
+      (fun e => tgt e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1.2 Q hQ)
+
+end ArcBack
+
+section EdgeBack
+
+variable [Fintype E] [DecidableEq E] (fst snd : E → V) (len : E → ℝ) (hpos : ∀ e, 0 < len e)
+  (k : ℕ)
+
+/-- The edge-disjoint paths of the graph read off a solution `Q` of the reduced instance
+`edgeReduced`: the paths `LineData.backSol` of the trimmed graph, with their edges read as edges
+of the graph. -/
+noncomputable def edgeBack (s t : Fin k → V)
+    (Q : Fin k → List ({e // edgeKept fst snd len hpos k e} ⊕ (Fin k ⊕ Fin k))) :
+    Fin k → List (E × V) :=
+  fun i => (LineData.backSol (edgeTrim fst snd len hpos k) s t Q i).map (Prod.map Subtype.val id)
+
+/-- `edgeBack` maps every solution of `edgeReduced` to `k` pairwise edge-disjoint shortest paths
+of the graph. -/
+theorem isEdgeSolution_edgeBack (hk : 2 ≤ k) (s t : Fin k → V) (hst : ∀ i, s i ≠ t i)
+    (Q : Fin k → List ({e // edgeKept fst snd len hpos k e} ⊕ (Fin k ⊕ Fin k)))
+    (hQ : (edgeReduced fst snd len hpos k hk s t).IsSolution Q) :
+    (MGraph.ofEdges fst snd len hpos).IsEdgeSolution s t (edgeBack fst snd len hpos k s t Q) :=
+  MGraph.isEdgeSolution_of_trim (MGraph.ofEdges fst snd len hpos)
+    (pr := fun e => s(fst e, snd e)) (loopP := Sym2.IsDiag)
+    (edge_hsub fst snd len hpos) (edge_hloop fst snd len hpos) s t (by omega)
+    ((prop_edgedisjoint (fun e : {e // edgeKept fst snd len hpos k e} => fst e.1)
+      (fun e => snd e.1) (fun e => len e.1) (fun e => hpos e.1) s t hk hst).1.2 Q hQ)
+
+end EdgeBack
+
+/-- cor:edgedisjoint, "find one if it exists".  If the root entry of the guillotine table on the
+reduced instance is true, then the paths that the table outputs (`Instance.solution`), mapped
+back by `arcBack` (`edgeBack`), are `k` pairwise arc-disjoint (edge-disjoint) shortest paths of
+the digraph (graph). -/
+theorem cor_edgedisjoint_solution :
+    (∀ (k : ℕ) [NeZero k] (hk : 2 ≤ k) (V E : Type) [Fintype V] [DecidableEq V] [Fintype E]
+      [DecidableEq E] (src tgt : E → V) (len : E → ℝ) (hpos : ∀ e, 0 < len e)
+      (s t : Fin k → V), (∀ i, s i ≠ t i) →
+      (arcReduced src tgt len hpos k hk s t).Tab Finset.univ
+          (arcReduced src tgt len hpos k hk s t).Pi0 →
+      (MGraph.ofArcs src tgt len hpos).IsEdgeSolution s t
+        (arcBack src tgt len hpos k s t (arcReduced src tgt len hpos k hk s t).solution)) ∧
+    (∀ (k : ℕ) [NeZero k] (hk : 2 ≤ k) (V E : Type) [Fintype V] [DecidableEq V] [Fintype E]
+      [DecidableEq E] (fst snd : E → V) (len : E → ℝ) (hpos : ∀ e, 0 < len e)
+      (s t : Fin k → V), (∀ i, s i ≠ t i) →
+      (edgeReduced fst snd len hpos k hk s t).Tab Finset.univ
+          (edgeReduced fst snd len hpos k hk s t).Pi0 →
+      (MGraph.ofEdges fst snd len hpos).IsEdgeSolution s t
+        (edgeBack fst snd len hpos k s t (edgeReduced fst snd len hpos k hk s t).solution)) :=
+  ⟨fun k _ hk _ _ _ _ _ _ src tgt len hpos s t hst h =>
+      isEdgeSolution_arcBack src tgt len hpos k hk s t hst _
+        ((arcReduced src tgt len hpos k hk s t).extract_isSolution h),
+    fun k _ hk _ _ _ _ _ _ fst snd len hpos s t hst h =>
+      isEdgeSolution_edgeBack fst snd len hpos k hk s t hst _
+        ((edgeReduced fst snd len hpos k hk s t).extract_isSolution h)⟩
 
 end DSPP

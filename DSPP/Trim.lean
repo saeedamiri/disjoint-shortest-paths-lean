@@ -155,32 +155,50 @@ theorem kept_repl0 (hk : 1 ≤ k) (e : E) (hl : ¬ loopP (pr e)) :
 variable (s t : Fin k → V)
 
 include hsub hloop in
+/-- Every path of `M` gives a path of the trimmed multigraph that is not longer. -/
+theorem exists_kept_path (hk : 1 ≤ k) {a b : V} {R : List (E × V)} (hR : M.IsPath a R b) :
+    ∃ R', (M.restrict (M.Kept pr loopP k)).IsPath a R' b ∧
+      (M.restrict (M.Kept pr loopP k)).mlen R' ≤ M.mlen R := by
+  have hφ : ∀ y ∈ R, ∀ u, M.step u y.1 y.2 → M.step u (M.repl0 pr y.1) y.2 :=
+    fun y _ u hs => hsub hs (M.pr_repl0 y.1)
+  have hP := M.isPath_map M _ hφ hR
+  obtain ⟨R', hR', hmap⟩ := M.exists_restrict hP.1 (p := M.Kept pr loopP k) (by
+    intro e he
+    rw [edges_map] at he
+    obtain ⟨g, hg, rfl⟩ := List.mem_map.1 he
+    obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hg
+    obtain ⟨u, hs, hne⟩ := M.step_ne_of_isPath hR hy
+    exact M.kept_repl0 hk _ (fun hl => hne (hloop hs hl)))
+  refine ⟨R', ⟨hR', ?_⟩, ?_⟩
+  · have := hP.2
+    rw [← hmap, verts_map] at this
+    exact this
+  · rw [← M.mlen_restrict, hmap]
+    exact M.mlen_map_le M _ (fun y _ => M.len_repl0 y.1)
+
+include hsub hloop in
+/-- A solution of the trimmed multigraph, with its arcs or edges read as arcs or edges of `M`,
+is a solution of `M`. -/
+theorem isEdgeSolution_of_trim (hk : 1 ≤ k) {Q : Fin k → List ({e // M.Kept pr loopP k e} × V)}
+    (hQ : (M.restrict (M.Kept pr loopP k)).IsEdgeSolution s t Q) :
+    M.IsEdgeSolution s t (fun i => (Q i).map (Prod.map Subtype.val id)) := by
+  obtain ⟨hQ, hdis⟩ := hQ
+  refine ⟨fun i => ⟨M.isPath_restrict (hQ i).1, fun R hR => ?_⟩, ?_⟩
+  · obtain ⟨R', hR', hle⟩ := M.exists_kept_path hsub hloop hk hR
+    rw [M.mlen_restrict]
+    exact ((hQ i).2 R' hR').trans hle
+  · intro i j hij e he he'
+    rw [edges_map] at he he'
+    obtain ⟨f, hf, rfl⟩ := List.mem_map.1 he
+    obtain ⟨g, hg, hgf⟩ := List.mem_map.1 he'
+    exact hdis i j hij f hf (Subtype.ext hgf ▸ hg)
+
+include hsub hloop in
 /-- Trimming preserves the answer: with `k` pairs of terminals, keeping at most `k` arcs or
 edges of minimum length per pair (and no loops) changes neither the distances nor the existence
 of `k` pairwise arc- or edge-disjoint shortest paths. -/
 theorem hasEdgeSolution_trim_iff (hk : 1 ≤ k) :
     M.HasEdgeSolution s t ↔ (M.restrict (M.Kept pr loopP k)).HasEdgeSolution s t := by
-  -- Every path of `M` gives a path of the trimmed multigraph that is not longer.
-  have hshort : ∀ a b (R : List (E × V)), M.IsPath a R b → ∃ R',
-      (M.restrict (M.Kept pr loopP k)).IsPath a R' b ∧
-        (M.restrict (M.Kept pr loopP k)).mlen R' ≤ M.mlen R := by
-    intro a b R hR
-    have hφ : ∀ y ∈ R, ∀ u, M.step u y.1 y.2 → M.step u (M.repl0 pr y.1) y.2 :=
-      fun y _ u hs => hsub hs (M.pr_repl0 y.1)
-    have hP := M.isPath_map M _ hφ hR
-    obtain ⟨R', hR', hmap⟩ := M.exists_restrict hP.1 (p := M.Kept pr loopP k) (by
-      intro e he
-      rw [edges_map] at he
-      obtain ⟨g, hg, rfl⟩ := List.mem_map.1 he
-      obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hg
-      obtain ⟨u, hs, hne⟩ := M.step_ne_of_isPath hR hy
-      exact M.kept_repl0 hk _ (fun hl => hne (hloop hs hl)))
-    refine ⟨R', ⟨hR', ?_⟩, ?_⟩
-    · have := hP.2
-      rw [← hmap, verts_map] at this
-      exact this
-    · rw [← M.mlen_restrict, hmap]
-      exact M.mlen_map_le M _ (fun y _ => M.len_repl0 y.1)
   constructor
   · rintro ⟨P, hP, hdis⟩
     have hmin : ∀ i, ∀ x ∈ P i, x.1 ∈ M.minList pr (pr x.1) :=
@@ -226,17 +244,8 @@ theorem hasEdgeSolution_trim_iff (hk : 1 ≤ k) :
       rcases M.repl_inj (hmin i x hx) (hmin j y hy) (hfe.trans hge.symm) with h | h
       · exact hdis i j hij x.1 (List.mem_map_of_mem hx) (h ▸ List.mem_map_of_mem hy)
       · exact hij h
-  · rintro ⟨Q, hQ, hdis⟩
-    refine ⟨fun i => (Q i).map (Prod.map Subtype.val id), fun i => ⟨M.isPath_restrict (hQ i).1,
-      fun R hR => ?_⟩, ?_⟩
-    · obtain ⟨R', hR', hle⟩ := hshort _ _ R hR
-      rw [M.mlen_restrict]
-      exact ((hQ i).2 R' hR').trans hle
-    · intro i j hij e he he'
-      rw [edges_map] at he he'
-      obtain ⟨f, hf, rfl⟩ := List.mem_map.1 he
-      obtain ⟨g, hg, hgf⟩ := List.mem_map.1 he'
-      exact hdis i j hij f hf (Subtype.ext hgf ▸ hg)
+  · rintro ⟨Q, hQ⟩
+    exact ⟨_, M.isEdgeSolution_of_trim hsub hloop s t hk hQ⟩
 
 /-- At most `k` arcs or edges are kept per pair that is not a loop. -/
 theorem card_kept_le [Fintype P] (k : ℕ) :

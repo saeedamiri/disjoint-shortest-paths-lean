@@ -196,6 +196,66 @@ theorem wlen_img (hk : 2 ≤ k) (i : Fin k) (e : E) (W : List E) :
   rw [Instance.wlen_cons_cons, D.wlen_tail hk i W e]
   simp [inst, llen]
 
+/-- The arcs or edges `W` of a path `img i W` of `L`. -/
+def lw (Q : List (E ⊕ (Fin k ⊕ Fin k))) : List E := Q.filterMap Sum.getLeft?
+
+omit [Fintype E] [DecidableEq E] in
+theorem lw_img (i : Fin k) (W : List E) : lw (img i W) = W := by
+  unfold lw img
+  rw [List.filterMap_cons, List.filterMap_append, List.filterMap_map]
+  simp [Function.comp_def]
+
+omit [Fintype E] [DecidableEq E] in
+/-- A path of `M` from `a` to `b` that uses only arcs or edges of `W` and is not longer than `W`,
+if there is one (a pick among the finitely many paths inside `W`). -/
+noncomputable def pathIn {V : Type*} (M : MGraph V E) (a b : V) (W : List E) : List (E × V) :=
+  if h : ∃ P, M.IsPath a P b ∧ (∀ e ∈ MGraph.edges P, e ∈ W) ∧ M.mlen P ≤ (W.map M.len).sum
+  then h.choose else []
+
+omit [Fintype E] [DecidableEq E] in
+theorem pathIn_spec {V : Type*} {M : MGraph V E} {a b : V} {W : List E}
+    (h : ∃ P, M.IsPath a P b ∧ (∀ e ∈ MGraph.edges P, e ∈ W) ∧ M.mlen P ≤ (W.map M.len).sum) :
+    M.IsPath a (pathIn M a b W) b ∧ (∀ e ∈ MGraph.edges (pathIn M a b W), e ∈ W) ∧
+      M.mlen (pathIn M a b W) ≤ (W.map M.len).sum := by
+  unfold pathIn
+  rw [dif_pos h]
+  exact h.choose_spec
+
+omit [Fintype E] [DecidableEq E] in
+/-- The paths of `M` read off paths `Q` of `L`: for each `i`, a path of `M` inside the arcs or
+edges that `Q i` visits. -/
+noncomputable def backSol {V : Type*} (M : MGraph V E) (s t : Fin k → V)
+    (Q : Fin k → List (E ⊕ (Fin k ⊕ Fin k))) : Fin k → List (E × V) :=
+  fun i => pathIn M (s i) (t i) (lw (Q i))
+
+/-- Under the hypotheses of `hasSolution_iff`, `backSol` maps every solution of `L` to `k`
+pairwise arc- or edge-disjoint shortest paths of `M`. -/
+theorem isEdgeSolution_backSol {V : Type*} (hk : 2 ≤ k) (M : MGraph V E) (s t : Fin k → V)
+    (α β : ℝ) (hα : 0 < α)
+    (hfwd : ∀ i P, M.IsPath (s i) P (t i) → D.IsLW i (MGraph.edges P))
+    (hcost : ∀ i W, D.IsLW i W → (D.inst hk).wlen (img i W) = α * (W.map M.len).sum + β)
+    (hback : ∀ i W, D.IsLW i W → ∃ P, M.IsPath (s i) P (t i) ∧
+      (∀ e ∈ MGraph.edges P, e ∈ W) ∧ M.mlen P ≤ (W.map M.len).sum)
+    (Q : Fin k → List (E ⊕ (Fin k ⊕ Fin k))) (hQs : (D.inst hk).IsSolution Q) :
+    M.IsEdgeSolution s t (backSol M s t Q) := by
+  have hml : ∀ P : List (E × V), M.mlen P = ((MGraph.edges P).map M.len).sum := by
+    intro P; simp [MGraph.mlen, MGraph.edges, Function.comp_def]
+  obtain ⟨hQ, hdis⟩ := hQs
+  have hQW : ∀ i, Q i = img i (lw (Q i)) ∧ D.IsLW i (lw (Q i)) := fun i => by
+    obtain ⟨W', hQ', hW'⟩ := (D.isPath_iff hk i (Q i)).1 (hQ i).1
+    rw [hQ', lw_img]
+    exact ⟨rfl, hW'⟩
+  have hspec := fun i => pathIn_spec (hback i (lw (Q i)) (hQW i).2)
+  refine ⟨fun i => ⟨(hspec i).1, fun P' hP' => ?_⟩, ?_⟩
+  · have h1 := (hQ i).2 _ ((D.isPath_iff hk i _).2 ⟨_, rfl, hfwd i _ hP'⟩)
+    rw [(hQW i).1, hcost i _ (hQW i).2, hcost i _ (hfwd i _ hP'), ← hml] at h1
+    have : ((lw (Q i)).map M.len).sum ≤ M.mlen P' := by nlinarith
+    exact (hspec i).2.2.trans this
+  · intro i j hij e he he'
+    refine hdis i j hij (.inl e) ?_ ?_
+    · rw [(hQW i).1, mem_img]; exact Or.inr (Or.inl ⟨e, (hspec i).2.1 e he, rfl⟩)
+    · rw [(hQW j).1, mem_img]; exact Or.inr (Or.inl ⟨e, (hspec j).2.1 e he', rfl⟩)
+
 /-- Transfer of solutions.  Let `M` be a multigraph with terminals `s`, `t` and arcs or edges
 `E`.  Assume that
 * the arcs or edges of every `s_i`--`t_i` path of `M` form a list `W` with `IsLW i W`;
@@ -211,10 +271,12 @@ theorem hasSolution_iff {V : Type*} (hk : 2 ≤ k) (M : MGraph V E) (s t : Fin k
     (hcost : ∀ i W, D.IsLW i W → (D.inst hk).wlen (img i W) = α * (W.map M.len).sum + β)
     (hback : ∀ i W, D.IsLW i W → ∃ P, M.IsPath (s i) P (t i) ∧
       (∀ e ∈ MGraph.edges P, e ∈ W) ∧ M.mlen P ≤ (W.map M.len).sum) :
-    M.HasEdgeSolution s t ↔ (D.inst hk).HasSolution := by
+    (M.HasEdgeSolution s t ↔ (D.inst hk).HasSolution) ∧
+      ∀ Q, (D.inst hk).IsSolution Q → M.IsEdgeSolution s t (backSol M s t Q) := by
   have hml : ∀ P : List (E × V), M.mlen P = ((MGraph.edges P).map M.len).sum := by
     intro P; simp [MGraph.mlen, MGraph.edges, Function.comp_def]
-  constructor
+  refine ⟨⟨?_, fun h => ?_⟩,
+    fun Q hQ => D.isEdgeSolution_backSol hk M s t α β hα hfwd hcost hback Q hQ⟩
   · rintro ⟨P, hP, hdis⟩
     refine ⟨fun i => img i (MGraph.edges (P i)), fun i => ⟨?_, ?_⟩, ?_⟩
     · exact (D.isPath_iff hk i _).2 ⟨_, rfl, hfwd i _ (hP i).1⟩
@@ -231,23 +293,8 @@ theorem hasSolution_iff {V : Type*} (hk : 2 ≤ k) (M : MGraph V E) (s t : Fin k
       · exact hij h
       · subst h; exact hdis i j hij e he he'
       · exact hij h
-  · rintro ⟨Q, hQ, hdis⟩
-    have hW : ∀ i, ∃ W, Q i = img i W ∧ D.IsLW i W := fun i =>
-      (D.isPath_iff hk i (Q i)).1 (hQ i).1
-    choose W hQW hW using hW
-    have hP : ∀ i, ∃ P, M.IsPath (s i) P (t i) ∧
-        (∀ e ∈ MGraph.edges P, e ∈ W i) ∧ M.mlen P ≤ ((W i).map M.len).sum :=
-      fun i => hback i (W i) (hW i)
-    choose P hP hPW hPl using hP
-    refine ⟨P, fun i => ⟨hP i, fun P' hP' => ?_⟩, ?_⟩
-    · have h1 := (hQ i).2 _ ((D.isPath_iff hk i _).2 ⟨_, rfl, hfwd i _ hP'⟩)
-      rw [hQW i, hcost i _ (hW i), hcost i _ (hfwd i _ hP'), ← hml] at h1
-      have : ((W i).map M.len).sum ≤ M.mlen P' := by nlinarith
-      linarith [hPl i]
-    · intro i j hij e he he'
-      refine hdis i j hij (.inl e) ?_ ?_
-      · rw [hQW i, mem_img]; exact Or.inr (Or.inl ⟨e, hPW i e he, rfl⟩)
-      · rw [hQW j, mem_img]; exact Or.inr (Or.inl ⟨e, hPW j e he', rfl⟩)
+  · obtain ⟨Q, hQ⟩ := h
+    exact ⟨_, D.isEdgeSolution_backSol hk M s t α β hα hfwd hcost hback Q hQ⟩
 
 end LineData
 
