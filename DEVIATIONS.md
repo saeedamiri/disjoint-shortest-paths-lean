@@ -207,8 +207,10 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       bounds `f(k)·N^{6k²-4k-1}` (with `N` the size of `L`) and `g(k)·n^{2(6k²-4k-1)}`.
     - Terminals of different pairs may coincide: `cor_edgedisjoint` has no injectivity
       hypothesis on the terminals.
-    - Hypotheses: `k ≥ 2` and `s_i ≠ t_i` for every `i`, as in the statement of
-      cor:edgedisjoint. Pairs with `s_i = t_i` are not claimed by the paper.
+    - Hypotheses: `s_i ≠ t_i` for every `i`, as in the statement of cor:edgedisjoint, and
+      `k ≥ 2`, because `Instance` requires it (item 4). The paper says "for every fixed `k`";
+      the cases `k ≤ 1` are a single shortest path or nothing. Pairs with `s_i = t_i` are not
+      claimed by the paper.
     - "Find one": `arcBack` (`edgeBack`) maps a solution of the reduced instance to `k`
       disjoint shortest paths of `G`. It applies `LineData.backSol` on the trimmed graph and
       reads the arcs (edges) as arcs (edges) of `G` (`isEdgeSolution_of_trim`).
@@ -286,8 +288,10 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
 
 ## Not formalized
 
-- A machine model for the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`), and for the
-  `O(m)` trimming of cor:edgedisjoint and cor:waypoints. Item 20 states the work as counts.
+- A machine model for the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`), for the
+  `O(m)` trimming of cor:edgedisjoint and cor:waypoints, and for the distance check
+  `splitCheck` of cor:waypoints. These steps are outside the work bounds, which count only the
+  work of the table. Item 20 states the work as counts.
 
 ## Not claimed by the paper
 
