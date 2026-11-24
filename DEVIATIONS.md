@@ -11,7 +11,7 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
 1. **No parallel arcs.** The paper allows parallel arcs and then removes them without loss of
    generality (text after lem:Di). In Lean, arcs are a relation `arc : V → V → Prop` with
    lengths `len : V → V → ℝ`, so there are no parallel arcs from the start. This is the
-   paper's normalized instance. The reduction step is not formalized.
+   paper's normalized instance. The reduction step is formalized separately (item 23).
 
 2. **Distances.** The paper uses `d(u,v) ∈ ℝ≥0 ∪ {∞}`. Lean uses a predicate
    `Reach a b` and a real number `dist a b`, the infimum of walk lengths. Its value is 0 when
@@ -157,8 +157,143 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     length, which is the paper's reduction. Vertex-disjoint shortest paths are the same in
     both views. `cor_undirected` is `thm_main` restricted to these instances.
 
+## Multigraphs and the remarks (Multigraph.lean, ParallelArcs.lean, LineGraph.lean, Trim.lean, EdgeDisjoint.lean, EdgeDisjointCor.lean)
+
+22. **Multigraphs.** The paper allows parallel arcs and edges in the input.
+    - Lean: `MGraph V E` has a set `E` of arcs or edges and a relation `step u e w` (the arc or
+      edge `e` leads from `u` to `w`). `ofArcs src tgt` is a digraph; `ofEdges fst snd` is an
+      undirected graph, in which an edge can be used both ways.
+    - A walk from `a` is a list of pairs (arc or edge, next vertex), so parallel arcs are told
+      apart. A path is a walk with distinct vertices. `IsShortestPath` compares against all
+      paths.
+    - `HasEdgeSolution` asks for pairwise arc- or edge-disjoint shortest paths;
+      `HasVertexSolution` asks for pairwise vertex-disjoint ones.
+
+23. **Removing parallel arcs (text after lem:Di).**
+    - Lean: `simpleInst` keeps, for each ordered pair `(u, v)` with `u ≠ v` joined by some arc,
+      one arc of minimum length. Loops are dropped; a path never uses one.
+    - `parallel_arcs`: the multigraph has vertex-disjoint shortest paths iff `simpleInst` has
+      a solution. `thm_main_multigraph` is `thm_main` for multigraph inputs.
+    - `liftSol` maps a solution of `simpleInst` to one of the multigraph. Between consecutive
+      vertices it takes an arc of minimum length (`liftR`). `isVertexSolution_liftSol` proves
+      that the result is a solution.
+
+24. **prop:arcdisjoint and prop:edgedisjoint.**
+    - Paper: the line digraph `L` has the arcs (edges) of `G` as vertices, plus a new source
+      and a new target per pair.
+    - Lean: `LineData` builds `L` on `E ⊕ (Fin k ⊕ Fin k)`. `arcLine` is the directed form;
+      `edgeLine` joins two edges of an undirected graph when they share an end.
+      `prop_arcdisjoint` and `prop_edgedisjoint` give the equivalence and the vertex count
+      `|E| + 2k`.
+    - Hypotheses: `k ≥ 2`, because `Instance` requires it, and `s_i ≠ t_i` for every `i`, as in
+      cor:edgedisjoint.
+    - Each proposition also gives the map back. Every solution `Q` of `L` yields `k` disjoint
+      shortest paths of `G`, namely `LineData.backSol G s t Q`. For each `i`, `backSol` takes a
+      path of `G` that uses only the arcs or edges visited by `Q i` (`pathIn`). It picks among
+      the finitely many such paths, not from `HasEdgeSolution`.
+    - "`L` is acyclic if `G` is": `prop_arcdisjoint_acyclic`. `MGraph.Acyclic` says that every
+      closed walk is empty. `Instance.Acyclic` says that no vertex reaches itself along one or
+      more arcs (`Relation.TransGen`). The proof follows the paper: a closed walk of `L` through
+      `x_a` gives a closed walk of `G` through the tail of `a`, and the new sources and targets
+      lie on no closed walk.
+
+25. **cor:edgedisjoint.**
+    - Paper: keep at most `k` arcs (edges) of minimum length between any two vertices, then use
+      the propositions and thm:main.
+    - Lean: `arcKept` and `edgeKept` keep the `k` shortest arcs (edges) per ordered (unordered)
+      pair, and delete loops in both cases. `card_arcKept_le` gives `k·n(n-1)`;
+      `card_edgeKept_le` gives `k·C(n,2)`.
+    - `cor_edgedisjoint` gives the equivalence, the size `≤ k n² + 2k` of `L`, and the work
+      bounds `f(k)·N^{6k²-4k-1}` (with `N` the size of `L`) and `g(k)·n^{2(6k²-4k-1)}`.
+    - Terminals of different pairs may coincide: `cor_edgedisjoint` has no injectivity
+      hypothesis on the terminals.
+    - Hypotheses: `s_i ≠ t_i` for every `i`, as in the statement of cor:edgedisjoint, and
+      `k ≥ 2`, because `Instance` requires it (item 4). The paper says "for every fixed `k`";
+      the cases `k ≤ 1` are a single shortest path or nothing. Pairs with `s_i = t_i` are not
+      claimed by the paper.
+    - "Find one": `arcBack` (`edgeBack`) maps a solution of the reduced instance to `k`
+      disjoint shortest paths of `G`. It applies `LineData.backSol` on the trimmed graph and
+      reads the arcs (edges) as arcs (edges) of `G` (`isEdgeSolution_of_trim`).
+      `cor_edgedisjoint_solution`: if the root entry is true, then `arcBack` (`edgeBack`) of
+      the table's `solution` is a solution of `G`.
+
+## Output of a solution (Extraction.lean)
+
+26. **Reading the paths off the table.**
+    - Paper: the table decides the problem; a solution is found by back-tracking.
+    - Lean: `extract` follows the proof of lem:sound by recursion on `|U|`. At a split entry it
+      picks a split and a valid interface whose two sub-entries are true, and joins the paths
+      of the sub-entries along the chains of the interface (`joinPaths`). At a leaf it picks a
+      winning play of the pebble game, and the paths are the pebble trajectories
+      (`leafPaths`).
+    - The picks are among the table's own finitely many candidates and plays. No step picks
+      from `HasSolution`. `extract` is `noncomputable` because the picks use choice.
+    - `extract_isSolution`: if the root entry is true, `solution` is a solution.
+      `solution_spec`: `HasSolution ↔ IsSolution solution`.
+
+## Routes through prescribed vertices (Waypoints.lean)
+
+27. **Routes.** Paper: a path, cycle or walk through `w_0, …, w_ℓ` in this order.
+    - Lean: a route is given by its segments `R i`, a walk from `w i` to `w (i+1)`
+      (`IsSegs`). The route is the concatenation `catW R`, and `isWalk_catW` shows it is a walk
+      from `w 0` to `w ℓ`. A walk passes through the waypoints in order exactly when it splits
+      into such segments.
+    - Kind (i), `IsPathRoute`: the vertices of `catW R` are distinct.
+    - Kind (ii), `IsCycleRoute`: `w ℓ = w 0`, the vertices of the closed walk are distinct,
+      and its arcs or edges are distinct. This is a cycle. In an undirected graph with `ℓ = 2`,
+      the walk from `w 0` to `w 1` and back along the same edge has distinct vertices but not
+      distinct edges, so it is not a cycle route (`not_isCycleRoute_back`).
+    - The reduction uses the fact that distinct vertices force distinct arcs or edges. This
+      holds in every digraph (`ofArcs_cycle_hE`). In an undirected graph it holds for
+      `ℓ ≥ 3` (`ofEdges_cycle_hE`). So `cor_waypoints` assumes `ℓ ≥ 3` for undirected cycles,
+      as the paper does, and the proof uses this hypothesis.
+    - Kind (iii), `IsTrailRoute`: the arcs or edges of `catW R` are distinct.
+
+28. **Distance in a multigraph.** `MGraph.dist a b` is the infimum of the lengths of the paths
+    from `a` to `b`, and `0` if there is none. `L` is `wayLen w`. The paper's proof assumes `L` finite.
+    Lean adds no such hypothesis: if some `w (i+1)` cannot be reached from `w i`, no route
+    exists and both sides of each equivalence are false.
+
+29. **The split graph `G'`.**
+    - Paper: replace every `w ∈ W` by `w⁻` (arcs in) and `w⁺` (arcs out); `G'` has at most
+      `n + ℓ` vertices.
+    - Lean: `splitG` lives on `V ⊕ V`, with `w⁻ = inl w` and `w⁺ = inr w` for `w ∈ W`, and
+      `inl w` for both otherwise. It has `2n` vertices, some isolated. The work bound becomes
+      `f(ℓ)·(2n)^{6ℓ²-4ℓ-1}`, which is `f(ℓ)·2^{6ℓ²-4ℓ-1}·n^{6ℓ²-4ℓ-1}`: same exponent, and the
+      constant goes into `f`.
+    - An undirected graph enters through both orientations of every edge, as in the paper.
+      Lean uses an arc presentation `σ τ π ρ`: arcs `E` for a digraph, `E ⊕ E` for an undirected
+      graph.
+    - The distance check: the paper answers "no" if `d'(w_{i-1}⁺, w_i⁻) > d(w_{i-1}, w_i)` for
+      some `i`. Lean's `splitCheck` is `d' ≤ d` for every `i`. This is the negation of the
+      paper's test, because a path of `G'` maps to a walk of `G` of the same length, so
+      `d' ≥ d` whenever `w_i⁻` is reachable from `w_{i-1}⁺`.
+    - If `w_i⁻` is not reachable in `G'`, then `d' = 0` by convention and `splitCheck` can pass
+      where the paper answers "no". Then `G'` has no path for the pair `i`, so the table rejects,
+      and the equivalence still holds.
+
+30. **cor:waypoints.** `cor_waypoints` states, for digraphs and undirected graphs:
+    - the lower bound `L ≤` the length of every route of every kind (`wayLen_le`);
+    - for (i) and (ii): a route of length `L` exists iff `splitCheck` holds and the table of
+      thm:main accepts on `G'`, with work at most `f(ℓ)·n^{6ℓ²-4ℓ-1}`;
+    - for (iii): a route of length `L` exists iff the table of cor:edgedisjoint accepts for the
+      pairs `(w_{i-1}, w_i)`, with work at most `g(ℓ)·n^{2(6ℓ²-4ℓ-1)}`.
+    - The `O(m)` preprocessing is not modelled (item 20).
+    - "Find one": the route is read off the table's own `solution`. For (i) and (ii), `liftSol`
+      turns the paths of the instance into paths of `G'`, and `projW` reads them in `G`
+      (`splitRoute`, giving `arcPathRoute`, `arcCycleRoute`, `edgePathRoute` and
+      `edgeCycleRoute`). For (iii), `arcBack` (`edgeBack`) maps the solution of
+      cor:edgedisjoint back (`arcTrailRoute`, `edgeTrailRoute`). `cor_waypoints_route`: if the
+      check passes and the table accepts, the route has the required kind and length `L`.
+
 ## Not formalized
 
-- prop:arcdisjoint and prop:edgedisjoint (section "Remarks and open problems").
-- The output of a solution (unfolding stored choices).
-- The removal of parallel arcs (item 1).
+- A machine model for the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`), for the
+  `O(m)` trimming of cor:edgedisjoint and cor:waypoints, and for the distance check
+  `splitCheck` of cor:waypoints. These steps are outside the work bounds, which count only the
+  work of the table. Item 20 states the work as counts.
+
+## Not claimed by the paper
+
+- cor:edgedisjoint for pairs with `s_i = t_i`. The paper's statement assumes `s_i ≠ t_i` for
+  every `i`, and so does Lean. Terminals of different pairs may coincide in both (item 25).

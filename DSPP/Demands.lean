@@ -32,8 +32,33 @@ def Sem (U : Finset V) (Dm : Finset (Demand V k)) : Prop :=
     (∀ δ ∈ Dm, G.IsDemandPath U δ (R δ)) ∧
     ∀ δ ∈ Dm, ∀ δ' ∈ Dm, δ ≠ δ' → ∀ v ∈ R δ, v ∉ R δ'
 
+/-- The paths `R` witness `S(U, Π)`. -/
+def SemBy (U : Finset V) (Dm : Finset (Demand V k)) (R : Demand V k → List V) : Prop :=
+  (∀ δ ∈ Dm, G.IsDemandPath U δ (R δ)) ∧
+    ∀ δ ∈ Dm, ∀ δ' ∈ Dm, δ ≠ δ' → ∀ v ∈ R δ, v ∉ R δ'
+
+theorem sem_iff_semBy (U : Finset V) (Dm : Finset (Demand V k)) :
+    G.Sem U Dm ↔ ∃ R, G.SemBy U Dm R := Iff.rfl
+
 /-- The root demands `Π_0 = {(l, s_l, t_l)}`. -/
 noncomputable def Pi0 : Finset (Demand V k) := Finset.univ.image fun l => (l, G.s l, G.t l)
+
+/-- Paths for the root demands, read by label, are a solution (by lem:Di (b)). -/
+theorem semBy_root_isSolution {R : Demand V k → List V} (h : G.SemBy Finset.univ G.Pi0 R) :
+    G.IsSolution fun l => R (l, G.s l, G.t l) := by
+  obtain ⟨hR, hdisj⟩ := h
+  have hl : ∀ l, ((l, G.s l, G.t l) : Demand V k) ∈ G.Pi0 := by
+    intro l
+    simp only [Pi0, Finset.mem_image, Finset.mem_univ, true_and]
+    exact ⟨l, rfl⟩
+  refine ⟨fun i => ?_, fun i j hij v hv => ?_⟩
+  · obtain ⟨h1, h2, h3, _, h5⟩ := hR _ (hl i)
+    have hp : G.IsPath (R (i, G.s i, G.t i)) (G.s i) (G.t i) :=
+      ⟨⟨h1, h2, h5.imp fun _ _ h => h.1⟩, h3⟩
+    exact (G.lem_Di_b hp).mpr h5
+  · refine hdisj _ (hl i) _ (hl j) ?_ v hv
+    intro h
+    exact hij (by simpa using congrArg Prod.fst h)
 
 /-- Text after def:S: the instance has a solution iff `S(V, Π_0)` (by lem:Di (b)). -/
 theorem sem_root_iff : G.Sem Finset.univ G.Pi0 ↔ G.HasSolution := by
@@ -47,15 +72,8 @@ theorem sem_root_iff : G.Sem Finset.univ G.Pi0 ↔ G.HasSolution := by
     simp only [Pi0, Finset.mem_image, Finset.mem_univ, true_and]
     exact ⟨l, rfl⟩
   constructor
-  · rintro ⟨R, hR, hdisj⟩
-    refine ⟨fun l => R (l, G.s l, G.t l), fun i => ?_, fun i j hij v hv => ?_⟩
-    · obtain ⟨h1, h2, h3, _, h5⟩ := hR _ (hl i)
-      have hp : G.IsPath (R (i, G.s i, G.t i)) (G.s i) (G.t i) :=
-        ⟨⟨h1, h2, h5.imp fun _ _ h => h.1⟩, h3⟩
-      exact (G.lem_Di_b hp).mpr h5
-    · refine hdisj _ (hl i) _ (hl j) ?_ v hv
-      intro h
-      exact hij (by simpa using congrArg Prod.fst h)
+  · rintro ⟨R, hR⟩
+    exact ⟨_, G.semBy_root_isSolution hR⟩
   · rintro ⟨P, hP, hdisj⟩
     refine ⟨fun δ => P δ.1, fun δ hδ => ?_, fun δ hδ δ' hδ' hne v hv => ?_⟩
     · obtain ⟨l, rfl⟩ := hmem δ hδ

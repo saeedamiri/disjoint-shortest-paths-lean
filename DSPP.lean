@@ -18,3 +18,11 @@ import DSPP.Complexity
 import DSPP.Closure
 import DSPP.Examples
 import DSPP.Main
+import DSPP.Multigraph
+import DSPP.LineGraph
+import DSPP.Trim
+import DSPP.EdgeDisjoint
+import DSPP.EdgeDisjointCor
+import DSPP.ParallelArcs
+import DSPP.Extraction
+import DSPP.Waypoints

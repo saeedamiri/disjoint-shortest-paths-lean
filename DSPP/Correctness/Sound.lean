@@ -175,14 +175,24 @@ theorem inD_of_mem_sortedArcs {U : Finset V} {Dm : Finset (Demand V k)}
   simp only [candPairs, Finset.mem_filter] at this
   rw [← hp.2]; exact this.2.1
 
-/-- The split step of lem:sound: paths for `Π⁻` in `U⁻` and for `Π⁺` in `U⁺`, joined by the
-interface arcs along the chains, are paths for `Π` in `U`. -/
-theorem sound_split {U : Finset V} {Dm : Finset (Demand V k)} {sp : StarIdx k × ℝ × ℝ}
-    {I : Finset (ArcDemand V k)} (hsp : sp ∈ G.splits U) (hI : I ∈ G.interfaces U Dm sp)
-    (hV : G.Valid U Dm sp I) (hm : G.Sem (G.Uminus U sp) (G.PiMinus U Dm sp I))
-    (hp : G.Sem (G.Uplus U sp) (G.PiPlus U Dm sp I)) : G.Sem U Dm := by
-  obtain ⟨Rm, hRm, hRmd⟩ := hm
-  obtain ⟨Rp, hRp, hRpd⟩ := hp
+/-- The join of the split step of lem:sound: the path for `δ` is the concatenation, along the
+chain of `δ`, of the paths of its sub-demands, taken from `Rm` on the side `U⁻` and from `Rp`
+on the side `U⁺`. -/
+noncomputable def joinPaths (U : Finset V) (sp : StarIdx k × ℝ × ℝ) (I : Finset (ArcDemand V k))
+    (Rm Rp : Demand V k → List V) (δ : Demand V k) : List V :=
+  ((G.chain I δ).map fun σ => if σ.2.1 ∈ G.Uminus U sp then Rm σ else Rp σ).flatten
+
+/-- The split step of lem:sound with explicit paths: paths `Rm` for `Π⁻` in `U⁻` and `Rp` for
+`Π⁺` in `U⁺`, joined by the interface arcs along the chains (`joinPaths`), are paths for `Π`
+in `U`. -/
+theorem sound_split_by {U : Finset V} {Dm : Finset (Demand V k)} {sp : StarIdx k × ℝ × ℝ}
+    {I : Finset (ArcDemand V k)} {Rm Rp : Demand V k → List V} (hsp : sp ∈ G.splits U)
+    (hI : I ∈ G.interfaces U Dm sp) (hV : G.Valid U Dm sp I)
+    (hm : G.SemBy (G.Uminus U sp) (G.PiMinus U Dm sp I) Rm)
+    (hp : G.SemBy (G.Uplus U sp) (G.PiPlus U Dm sp I) Rp) :
+    G.SemBy U Dm (G.joinPaths U sp I Rm Rp) := by
+  obtain ⟨hRm, hRmd⟩ := hm
+  obtain ⟨hRp, hRpd⟩ := hp
   let Rs : Demand V k → List V := fun σ =>
     if σ.2.1 ∈ G.Uminus U sp then Rm σ else Rp σ
   have hRs : ∀ σ, Rs σ = if σ.2.1 ∈ G.Uminus U sp then Rm σ else Rp σ := fun _ => rfl
@@ -227,7 +237,10 @@ theorem sound_split {U : Finset V} {Dm : Finset (Demand V k)} {sp : StarIdx k ×
     rw [allSub, Multiset.mem_bind]
     exact ⟨δ, hδ, Multiset.mem_coe.2 hσ⟩
   obtain ⟨hcnd, hcdisj⟩ := G.chain_nodup_disj (nodup_of_nodup_bind_demandEnds hV.2.2.1)
-  refine ⟨fun δ => ((G.chain I δ).map Rs).flatten, ?_, ?_⟩
+  suffices H : (∀ δ ∈ Dm, G.IsDemandPath U δ (((G.chain I δ).map Rs).flatten)) ∧
+      ∀ δ ∈ Dm, ∀ δ' ∈ Dm, δ ≠ δ' → ∀ v ∈ ((G.chain I δ).map Rs).flatten,
+        v ∉ ((G.chain I δ').map Rs).flatten from H
+  refine ⟨?_, ?_⟩
   · intro δ hδ
     have hfl := flatten_chainL (G.inD δ.1) δ.1 Rs δ.2.1 (G.sortedArcs I δ) δ.2.2
       (fun σ hσ => by
@@ -260,6 +273,16 @@ theorem sound_split {U : Finset V} {Dm : Finset (Demand V k)} {sp : StarIdx k ×
     have hne' : σ ≠ σ' := by
       rintro rfl; exact hcdisj δ hδ δ' hδ' hne σ hσ hσ'
     exact hdisj σ (hmemSub δ hδ σ hσ) σ' (hmemSub δ' hδ' σ' hσ') hne' v hvr hvr'
+
+/-- The split step of lem:sound: paths for `Π⁻` in `U⁻` and for `Π⁺` in `U⁺`, joined by the
+interface arcs along the chains, are paths for `Π` in `U`. -/
+theorem sound_split {U : Finset V} {Dm : Finset (Demand V k)} {sp : StarIdx k × ℝ × ℝ}
+    {I : Finset (ArcDemand V k)} (hsp : sp ∈ G.splits U) (hI : I ∈ G.interfaces U Dm sp)
+    (hV : G.Valid U Dm sp I) (hm : G.Sem (G.Uminus U sp) (G.PiMinus U Dm sp I))
+    (hp : G.Sem (G.Uplus U sp) (G.PiPlus U Dm sp I)) : G.Sem U Dm := by
+  obtain ⟨Rm, hm⟩ := hm
+  obtain ⟨Rp, hp⟩ := hp
+  exact ⟨_, G.sound_split_by hsp hI hV hm hp⟩
 
 /-- lem:sound, by strong induction on `|U|`. -/
 theorem sound_aux : ∀ (n : ℕ) (U : Finset V) (Dm : Finset (Demand V k)), U.card = n →
