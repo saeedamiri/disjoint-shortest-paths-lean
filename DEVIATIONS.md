@@ -174,6 +174,9 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       one arc of minimum length. Loops are dropped; a path never uses one.
     - `parallel_arcs`: the multigraph has vertex-disjoint shortest paths iff `simpleInst` has
       a solution. `thm_main_multigraph` is `thm_main` for multigraph inputs.
+    - `liftSol` maps a solution of `simpleInst` to one of the multigraph. Between consecutive
+      vertices it takes an arc of minimum length (`liftR`). `isVertexSolution_liftSol` proves
+      that the result is a solution.
 
 24. **prop:arcdisjoint and prop:edgedisjoint.**
     - Paper: the line digraph `L` has the arcs (edges) of `G` as vertices, plus a new source
@@ -182,10 +185,17 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       `edgeLine` joins two edges of an undirected graph when they share an end.
       `prop_arcdisjoint` and `prop_edgedisjoint` give the equivalence and the vertex count
       `|E| + 2k`.
-    - Hypotheses: `k ≥ 2`, because `Instance` requires it, and `s_i ≠ t_i` for every `i`. The
-      paper's proof of cor:edgedisjoint drops the pairs with `s_i = t_i` before using the
-      propositions.
-    - "`L` is acyclic if `G` is" is not formalized (see "Not formalized").
+    - Hypotheses: `k ≥ 2`, because `Instance` requires it, and `s_i ≠ t_i` for every `i`, as in
+      cor:edgedisjoint.
+    - Each proposition also gives the map back. Every solution `Q` of `L` yields `k` disjoint
+      shortest paths of `G`, namely `LineData.backSol G s t Q`. For each `i`, `backSol` takes a
+      path of `G` that uses only the arcs or edges visited by `Q i` (`pathIn`). It picks among
+      the finitely many such paths, not from `HasEdgeSolution`.
+    - "`L` is acyclic if `G` is": `prop_arcdisjoint_acyclic`. `MGraph.Acyclic` says that every
+      closed walk is empty. `Instance.Acyclic` says that no vertex reaches itself along one or
+      more arcs (`Relation.TransGen`). The proof follows the paper: a closed walk of `L` through
+      `x_a` gives a closed walk of `G` through the tail of `a`, and the new sources and targets
+      lie on no closed walk.
 
 25. **cor:edgedisjoint.**
     - Paper: keep at most `k` arcs (edges) of minimum length between any two vertices, then use
@@ -197,8 +207,13 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       bounds `f(k)·N^{6k²-4k-1}` (with `N` the size of `L`) and `g(k)·n^{2(6k²-4k-1)}`.
     - Terminals of different pairs may coincide: `cor_edgedisjoint` has no injectivity
       hypothesis on the terminals.
-    - Hypotheses: `k ≥ 2` and `s_i ≠ t_i` for every `i`. Pairs with `s_i = t_i` are in "Not
-      formalized".
+    - Hypotheses: `k ≥ 2` and `s_i ≠ t_i` for every `i`, as in the statement of
+      cor:edgedisjoint. Pairs with `s_i = t_i` are not claimed by the paper.
+    - "Find one": `arcBack` (`edgeBack`) maps a solution of the reduced instance to `k`
+      disjoint shortest paths of `G`. It applies `LineData.backSol` on the trimmed graph and
+      reads the arcs (edges) as arcs (edges) of `G` (`isEdgeSolution_of_trim`).
+      `cor_edgedisjoint_solution`: if the root entry is true, then `arcBack` (`edgeBack`) of
+      the table's `solution` is a solution of `G`.
 
 ## Output of a solution (Extraction.lean)
 
@@ -222,10 +237,14 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       from `w 0` to `w ℓ`. A walk passes through the waypoints in order exactly when it splits
       into such segments.
     - Kind (i), `IsPathRoute`: the vertices of `catW R` are distinct.
-    - Kind (ii), `IsCycleRoute`: `w ℓ = w 0`, and the vertices of the closed walk are
-      distinct. For a digraph, and for an undirected graph with `ℓ ≥ 3`, this is a cycle.
-      For an undirected graph with `ℓ = 2` it would also allow going back along the same
-      edge, so `cor_waypoints` assumes `ℓ ≥ 3` there, as the paper does.
+    - Kind (ii), `IsCycleRoute`: `w ℓ = w 0`, the vertices of the closed walk are distinct,
+      and its arcs or edges are distinct. This is a cycle. In an undirected graph with `ℓ = 2`,
+      the walk from `w 0` to `w 1` and back along the same edge has distinct vertices but not
+      distinct edges, so it is not a cycle route.
+    - The reduction uses the fact that distinct vertices force distinct arcs or edges. This
+      holds in every digraph (`ofArcs_cycle_hE`). In an undirected graph it holds for
+      `ℓ ≥ 3` (`ofEdges_cycle_hE`). So `cor_waypoints` assumes `ℓ ≥ 3` for undirected cycles,
+      as the paper does, and the proof uses this hypothesis.
     - Kind (iii), `IsTrailRoute`: the arcs or edges of `catW R` are distinct.
 
 28. **Distance in a multigraph.** `MGraph.dist a b` is the infimum of the lengths of the paths
@@ -257,16 +276,20 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       thm:main accepts on `G'`, with work at most `f(ℓ)·n^{6ℓ²-4ℓ-1}`;
     - for (iii): a route of length `L` exists iff the table of cor:edgedisjoint accepts for the
       pairs `(w_{i-1}, w_i)`, with work at most `g(ℓ)·n^{2(6ℓ²-4ℓ-1)}`.
-    - The `O(m)` preprocessing is not modelled (item 20). "Find one" is covered for the
-      instance by `extract_isSolution`; mapping the paths of `G'` back to a route is in the
-      proofs (`projW`), not stated as a separate function.
+    - The `O(m)` preprocessing is not modelled (item 20).
+    - "Find one": the route is read off the table's own `solution`. For (i) and (ii), `liftSol`
+      turns the paths of the instance into paths of `G'`, and `projW` reads them in `G`
+      (`splitRoute`, giving `arcPathRoute`, `arcCycleRoute`, `edgePathRoute` and
+      `edgeCycleRoute`). For (iii), `arcBack` (`edgeBack`) maps the solution of
+      cor:edgedisjoint back (`arcTrailRoute`, `edgeTrailRoute`). `cor_waypoints_route`: if the
+      check passes and the table accepts, the route has the required kind and length `L`.
 
 ## Not formalized
 
 - A machine model for the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`), and for the
   `O(m)` trimming of cor:edgedisjoint and cor:waypoints. Item 20 states the work as counts.
-- cor:edgedisjoint for pairs with `s_i = t_i` (terminals of different pairs may coincide; that
-  case is covered, item 25). The paper drops such pairs. If fewer than two pairs remain, the
-  problem is a reachability or single-pair question, and `Instance` (which needs `k ≥ 2`) does
-  not cover it. Lean assumes `k ≥ 2` and `s_i ≠ t_i` for every `i`.
-- "`L` is acyclic if `G` is" in prop:arcdisjoint.
+
+## Not claimed by the paper
+
+- cor:edgedisjoint for pairs with `s_i = t_i`. The paper's statement assumes `s_i ≠ t_i` for
+  every `i`, and so does Lean. Terminals of different pairs may coincide in both (item 25).

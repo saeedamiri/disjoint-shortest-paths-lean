@@ -73,8 +73,8 @@ variable [Fintype E] [DecidableEq E]
 of different pairs may coincide.  Then `G` has pairwise arc-disjoint paths, each a shortest
 `s_i`--`t_i` path, iff the line digraph `L` (`arcLine`) has pairwise vertex-disjoint paths, each a
 shortest `σ_i`--`τ_i` path.  `L` is an `Instance`, so its lengths are positive and its `2k`
-terminals are distinct; it has `|E| + 2k` vertices.  (`Instance` requires `k ≥ 2`.)  Every solution `Q` of `L` gives
-such paths of `G`, `LineData.backSol G s t Q`. -/
+terminals are distinct; it has `|E| + 2k` vertices.  (`Instance` requires `k ≥ 2`.)
+Every solution `Q` of `L` gives such paths of `G`, `LineData.backSol G s t Q`. -/
 theorem prop_arcdisjoint (hk : 2 ≤ k) (hst : ∀ i, s i ≠ t i) :
     (((MGraph.ofArcs src tgt len hpos).HasEdgeSolution s t ↔
       ((arcLine src tgt len hpos s t).inst hk).HasSolution) ∧
@@ -258,7 +258,8 @@ edge `e` joining `fst e` and `snd e`), positive lengths, and pairs `(s_i, t_i)` 
 edge-disjoint paths, each a shortest `s_i`--`t_i` path, iff the digraph `L` (`edgeLine`) has
 pairwise vertex-disjoint paths, each a shortest `σ_i`--`τ_i` path.  `L` is an `Instance`, so its
 lengths are positive and its `2k` terminals are distinct; it has `|E| + 2k` vertices.
-(`Instance` requires `k ≥ 2`.) -/
+(`Instance` requires `k ≥ 2`.)  Every solution `Q` of `L` gives such paths of `G`,
+`LineData.backSol G s t Q`. -/
 theorem prop_edgedisjoint (hk : 2 ≤ k) (hst : ∀ i, s i ≠ t i) :
     (((MGraph.ofEdges fst snd len hpos).HasEdgeSolution s t ↔
       ((edgeLine fst snd len hpos s t).inst hk).HasSolution) ∧
