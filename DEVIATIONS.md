@@ -195,8 +195,10 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       `card_edgeKept_le` gives `k·C(n,2)`.
     - `cor_edgedisjoint` gives the equivalence, the size `≤ k n² + 2k` of `L`, and the work
       bounds `f(k)·N^{6k²-4k-1}` (with `N` the size of `L`) and `g(k)·n^{2(6k²-4k-1)}`.
-    - Hypotheses: `k ≥ 2` and `s_i ≠ t_i` for every `i`. The case with coinciding terminals
-      `s_i = t_i` is in "Not formalized".
+    - Terminals of different pairs may coincide: `cor_edgedisjoint` has no injectivity
+      hypothesis on the terminals.
+    - Hypotheses: `k ≥ 2` and `s_i ≠ t_i` for every `i`. Pairs with `s_i = t_i` are in "Not
+      formalized".
 
 ## Output of a solution (Extraction.lean)
 
@@ -227,7 +229,7 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
     - Kind (iii), `IsTrailRoute`: the arcs or edges of `catW R` are distinct.
 
 28. **Distance in a multigraph.** `MGraph.dist a b` is the infimum of the lengths of the paths
-    from `a` to `b`, and `0` if there is none. `L` is `wayLen w`. The paper assumes `L` finite.
+    from `a` to `b`, and `0` if there is none. `L` is `wayLen w`. The paper's proof assumes `L` finite.
     Lean adds no such hypothesis: if some `w (i+1)` cannot be reached from `w i`, no route
     exists and both sides of each equivalence are false.
 
@@ -242,7 +244,12 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
       Lean uses an arc presentation `σ τ π ρ`: arcs `E` for a digraph, `E ⊕ E` for an undirected
       graph.
     - The distance check: the paper answers "no" if `d'(w_{i-1}⁺, w_i⁻) > d(w_{i-1}, w_i)` for
-      some `i`. Lean's `splitCheck` is `d' ≤ d` for every `i`.
+      some `i`. Lean's `splitCheck` is `d' ≤ d` for every `i`. This is the negation of the
+      paper's test, because a path of `G'` maps to a walk of `G` of the same length, so
+      `d' ≥ d` whenever `w_i⁻` is reachable from `w_{i-1}⁺`.
+    - If `w_i⁻` is not reachable in `G'`, then `d' = 0` by convention and `splitCheck` can pass
+      where the paper answers "no". Then `G'` has no path for the pair `i`, so the table rejects,
+      and the equivalence still holds.
 
 30. **cor:waypoints.** `cor_waypoints` states, for digraphs and undirected graphs:
     - the lower bound `L ≤` the length of every route of every kind (`wayLen_le`);
@@ -258,8 +265,8 @@ sufficient. The main theorem (`DSPP.thm_main`) and the table (`Instance.Tab`) fo
 
 - A machine model for the preprocessing (Dijkstra, sorting, `O(k(m + n log n))`), and for the
   `O(m)` trimming of cor:edgedisjoint and cor:waypoints. Item 20 states the work as counts.
-- cor:edgedisjoint when terminals of different pairs coincide with `s_i = t_i`. The paper drops
-  such pairs. If fewer than two pairs remain, the problem is a reachability or single-pair
-  question, and `Instance` (which needs `k ≥ 2`) does not cover it. Lean assumes `k ≥ 2` and
-  `s_i ≠ t_i` for every `i`.
+- cor:edgedisjoint for pairs with `s_i = t_i` (terminals of different pairs may coincide; that
+  case is covered, item 25). The paper drops such pairs. If fewer than two pairs remain, the
+  problem is a reachability or single-pair question, and `Instance` (which needs `k ≥ 2`) does
+  not cover it. Lean assumes `k ≥ 2` and `s_i ≠ t_i` for every `i`.
 - "`L` is acyclic if `G` is" in prop:arcdisjoint.
