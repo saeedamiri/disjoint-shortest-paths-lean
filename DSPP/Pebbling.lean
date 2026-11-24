@@ -124,13 +124,26 @@ def Inv (x : ι → W) (rest : ι → List W) : Prop :=
   (∀ r r', r ≠ r' → ∀ v ∈ x r :: rest r, v ∉ x r' :: rest r') ∧
   (∀ r r', r ≠ r' → ∀ v ∈ rest r, x r' = b r' ∨ key v < key (x r'))
 
+/-- The trajectories after the move from `x` to `y`: a pebble that moved records its old
+position. -/
+noncomputable def stepRest (x y : ι → W) (rest : ι → List W) (r : ι) : List W :=
+  if y r ≠ x r then x r :: rest r else rest r
+
 theorem Inv_step (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → key u < key v)
     {x y : ι → W} {rest : ι → List W} (h : Inv E key a b x rest) (hm : Move E key b x y) :
-    ∃ rest', Inv E key a b y rest' := by
+    Inv E key a b y (stepRest x y rest) := by
   obtain ⟨h1, h2, h3, h4⟩ := h
   obtain ⟨r, hr, hmin, w, hxw, hfree, rfl⟩ := hm
   have hlt : key (x r) < key w := hE r _ _ hxw
-  refine ⟨Function.update rest r (x r :: rest r), ?_, ?_, ?_, ?_⟩
+  have hwx : w ≠ x r := fun e => by rw [e] at hlt; exact lt_irrefl _ hlt
+  have hst : stepRest x (Function.update x r w) rest =
+      Function.update rest r (x r :: rest r) := by
+    funext r'
+    by_cases h : r' = r
+    · subst h; simp [stepRest, hwx]
+    · simp [stepRest, Function.update_of_ne h]
+  rw [hst]
+  refine ⟨?_, ?_, ?_, ?_⟩
   · intro r'
     by_cases h : r' = r
     · subst h
@@ -208,27 +221,82 @@ theorem Inv_reach (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → k
   | refl => exact ⟨_, Inv_start E key a b ha⟩
   | tail _ hm ih =>
     obtain ⟨rest, hr⟩ := ih
-    exact Inv_step E key a b hkey hE hr hm
+    exact ⟨_, Inv_step E key a b hkey hE hr hm⟩
+
+/-- The trajectories along a play `x, l` (a list of states after `x`). -/
+noncomputable def restAlong : (ι → W) → List (ι → W) → (ι → List W) → ι → List W
+  | _, [], rest => rest
+  | x, y :: l, rest => restAlong y l (stepRest x y rest)
+
+theorem Inv_along (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → key u < key v) :
+    ∀ (l : List (ι → W)) (x : ι → W) (rest : ι → List W), Inv E key a b x rest →
+      (x :: l).IsChain (Move E key b) →
+      Inv E key a b ((x :: l).getLast (List.cons_ne_nil _ _)) (restAlong x l rest) := by
+  intro l
+  induction l with
+  | nil => intro x rest h _; exact h
+  | cons y l ih =>
+    intro x rest h hc
+    rw [List.isChain_cons_cons] at hc
+    exact ih y _ (Inv_step E key a b hkey hE h hc.1) hc.2
+
+/-- A winning play: the list of states after the start, chosen from the reachability of the
+goal. -/
+noncomputable def play (h : Wins E key a b) : List (ι → W) :=
+  Classical.choose (List.exists_isChain_cons_of_relationReflTransGen h.2)
+
+theorem play_spec (h : Wins E key a b) :
+    (a :: play E key a b h).IsChain (Move E key b) ∧
+      (a :: play E key a b h).getLast (List.cons_ne_nil _ _) = b :=
+  Classical.choose_spec (List.exists_isChain_cons_of_relationReflTransGen h.2)
+
+/-- The paths read off a play `a, l`: the trajectory of every pebble, oldest vertex first. -/
+noncomputable def playPaths (l : List (ι → W)) (r : ι) : List W :=
+  (b r :: restAlong a l (fun _ => []) r).reverse
+
+/-- A play from `a` that ends in `b` gives pairwise disjoint paths: the trajectories of the
+pebbles. -/
+theorem fhw_play (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → key u < key v)
+    (ha : Function.Injective a) {l : List (ι → W)} (hc : (a :: l).IsChain (Move E key b))
+    (hl : (a :: l).getLast (List.cons_ne_nil _ _) = b) :
+    (∀ r, (playPaths a b l r).head? = some (a r) ∧ (playPaths a b l r).getLast? = some (b r) ∧
+      (playPaths a b l r).IsChain (E r) ∧ (playPaths a b l r).Nodup) ∧
+    ∀ r r', r ≠ r' → ∀ w ∈ playPaths a b l r, w ∉ playPaths a b l r' := by
+  have hI := Inv_along E key a b hkey hE l a _ (Inv_start E key a b ha) hc
+  rw [hl] at hI
+  obtain ⟨h1, h2, h3, -⟩ := hI
+  simp only [playPaths]
+  refine ⟨fun r => ⟨?_, ?_, ?_, ?_⟩, ?_⟩
+  · rw [List.head?_reverse]; exact h2 r
+  · rw [List.getLast?_reverse]; rfl
+  · exact List.isChain_reverse.2 (h1 r)
+  · rw [List.nodup_reverse]
+    have hc := (h1 r).imp (fun {p q} (h : E r q p) => hE r q p h)
+    have : IsTrans W (fun p q => key q < key p) := ⟨fun _ _ _ h1 h2 => lt_trans h2 h1⟩
+    exact ((List.isChain_iff_pairwise.1 hc).imp fun {p q} (h : key q < key p) e => by
+      subst e; exact lt_irrefl _ h)
+  · intro r r' hne v hv hv'
+    rw [List.mem_reverse] at hv hv'
+    exact h3 r r' hne v hv hv'
+
+/-- A won game gives pairwise disjoint paths, read off the chosen winning play. -/
+theorem fhw_win (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → key u < key v)
+    (h : Wins E key a b) :
+    (∀ r, (playPaths a b (play E key a b h) r).head? = some (a r) ∧
+      (playPaths a b (play E key a b h) r).getLast? = some (b r) ∧
+      (playPaths a b (play E key a b h) r).IsChain (E r) ∧
+      (playPaths a b (play E key a b h) r).Nodup) ∧
+    ∀ r r', r ≠ r' → ∀ w ∈ playPaths a b (play E key a b h) r,
+      w ∉ playPaths a b (play E key a b h) r' :=
+  fhw_play E key a b hkey hE h.1 (play_spec E key a b h).1 (play_spec E key a b h).2
 
 /-- Fortune--Hopcroft--Wyllie (the argument of lem:pebbling): if every arc increases `key`,
 the game is won if and only if there are pairwise disjoint paths. -/
 theorem fhw (hkey : Function.Injective key) (hE : ∀ r u v, E r u v → key u < key v) :
     Wins E key a b ↔ DisjointPaths E a b := by
   constructor
-  · rintro ⟨ha, hreach⟩
-    obtain ⟨rest, h1, h2, h3, -⟩ := Inv_reach E key a b hkey hE ha hreach
-    refine ⟨fun r => (b r :: rest r).reverse, fun r => ⟨?_, ?_, ?_, ?_⟩, ?_⟩
-    · rw [List.head?_reverse]; exact h2 r
-    · rw [List.getLast?_reverse]; rfl
-    · exact List.isChain_reverse.2 (h1 r)
-    · rw [List.nodup_reverse]
-      have hc := (h1 r).imp (fun {p q} (h : E r q p) => hE r q p h)
-      have : IsTrans W (fun p q => key q < key p) := ⟨fun _ _ _ h1 h2 => lt_trans h2 h1⟩
-      exact ((List.isChain_iff_pairwise.1 hc).imp fun {p q} (h : key q < key p) e => by
-        subst e; exact lt_irrefl _ h)
-    · intro r r' hne v hv hv'
-      rw [List.mem_reverse] at hv hv'
-      exact h3 r r' hne v hv hv'
+  · intro h
+    exact ⟨_, fhw_win E key a b hkey hE h⟩
   · rintro ⟨P, hP, hdis⟩
     have hPe : ∀ r, ∃ T, P r = a r :: T := fun r =>
       List.head?_eq_some_iff.1 (hP r).1

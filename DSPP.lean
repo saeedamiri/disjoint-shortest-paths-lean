@@ -24,3 +24,4 @@ import DSPP.Trim
 import DSPP.EdgeDisjoint
 import DSPP.EdgeDisjointCor
 import DSPP.ParallelArcs
+import DSPP.Extraction
