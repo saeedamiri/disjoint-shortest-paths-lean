@@ -9,7 +9,8 @@ solution using a deleted arc can use the kept one instead."
 A directed multigraph (`MGraph.ofArcs`) becomes an `Instance` by keeping, for every ordered
 pair `(u, v)` with `u ≠ v`, one arc of minimum length (`simpleInst`).  Its vertex-disjoint
 solutions correspond to those of the multigraph (`parallel_arcs`), so `thm_main` applies to
-multigraph inputs (`thm_main_multigraph`).
+multigraph inputs (`thm_main_multigraph`).  A solution of `simpleInst` gives one of the
+multigraph explicitly (`liftSol`).
 -/
 import DSPP.Multigraph
 import DSPP.Main
@@ -57,6 +58,13 @@ noncomputable def simpleInst (s t : Fin k → V) (hinj : Function.Injective (Sum
   terminals_injective := hinj
   two_le_k := hk
 
+/-- The arcs of a walk `a, d, …` of the instance without parallel arcs: for consecutive vertices
+`u`, `v` an arc from `u` to `v` of minimum length (the walk stops where there is none). -/
+noncomputable def liftR : V → List V → List (E × V)
+  | _, [] => []
+  | a, d :: R => if h : ∃ e, src e = a ∧ tgt e = d ∧ len e = minLen src tgt len a d
+      then (h.choose, d) :: liftR d R else []
+
 section
 
 variable (s t : Fin k → V) (hinj : Function.Injective (Sum.elim s t)) (hk : 2 ≤ k)
@@ -92,10 +100,14 @@ theorem verts_isPath {a b : V} {W : List (E × V)}
         rw [← hstep.1, ← hstep.2]; exact minLen_le src tgt len
       linarith
 
-theorem lift_isPath : ∀ (R : List V) (a b : V),
+/-- A path `R` of `simpleInst` from `a` gives the path `liftR a R.tail` of the multigraph with the
+same vertices and the same length. -/
+theorem liftR_isPath : ∀ (R : List V) (a b : V),
     (simpleInst src tgt len hpos s t hinj hk).IsPath R a b →
-    ∃ W, (MGraph.ofArcs src tgt len hpos).IsPath a W b ∧ MGraph.verts a W = R ∧
-      (MGraph.ofArcs src tgt len hpos).mlen W = (simpleInst src tgt len hpos s t hinj hk).wlen R := by
+    (MGraph.ofArcs src tgt len hpos).IsPath a (liftR src tgt len a R.tail) b ∧
+      MGraph.verts a (liftR src tgt len a R.tail) = R ∧
+      (MGraph.ofArcs src tgt len hpos).mlen (liftR src tgt len a R.tail) =
+        (simpleInst src tgt len hpos s t hinj hk).wlen R := by
   set G := simpleInst src tgt len hpos s t hinj hk
   intro R
   induction R with
@@ -108,18 +120,52 @@ theorem lift_isPath : ∀ (R : List V) (a b : V),
     | nil =>
       have : c = b := by simpa using hl
       subst this
-      exact ⟨[], ⟨rfl, by simp [MGraph.verts]⟩, rfl, by simp [G.wlen_singleton]⟩
+      exact ⟨⟨by simp [liftR], by simp [MGraph.verts, liftR]⟩, by simp [MGraph.verts, liftR],
+        by simp [liftR, G.wlen_singleton]⟩
     | cons d R =>
       rw [List.isChain_cons_cons] at hc
-      obtain ⟨W, hW, hWv, hWl⟩ := ih d b ⟨⟨by simp, by simpa using hl, hc.2⟩,
+      obtain ⟨hW, hWv, hWl⟩ := ih d b ⟨⟨by simp, by simpa using hl, hc.2⟩,
         (List.nodup_cons.1 hnd).2⟩
-      obtain ⟨e, he1, he2, hel⟩ := exists_minLen src tgt len hc.1.2
-      refine ⟨(e, d) :: W, ⟨⟨⟨he1, he2⟩, hW.1⟩, ?_⟩, ?_, ?_⟩
+      have hex := exists_minLen src tgt len hc.1.2
+      simp only [List.tail_cons] at hW hWv hWl
+      simp only [List.tail_cons, liftR, dif_pos hex]
+      obtain ⟨he1, he2, hel⟩ := hex.choose_spec
+      refine ⟨⟨⟨⟨he1, he2⟩, hW.1⟩, ?_⟩, ?_, ?_⟩
       · rw [MGraph.verts_cons]; simp only at hWv ⊢; rw [hWv]; exact hnd
       · rw [MGraph.verts_cons]; simp only at hWv ⊢; rw [hWv]
       · rw [MGraph.mlen_cons, G.wlen_cons_cons, hWl]
         simp only [MGraph.ofArcs] at hel ⊢
         rw [hel]; rfl
+
+theorem lift_isPath (R : List V) (a b : V)
+    (h : (simpleInst src tgt len hpos s t hinj hk).IsPath R a b) :
+    ∃ W, (MGraph.ofArcs src tgt len hpos).IsPath a W b ∧ MGraph.verts a W = R ∧
+      (MGraph.ofArcs src tgt len hpos).mlen W = (simpleInst src tgt len hpos s t hinj hk).wlen R :=
+  ⟨_, liftR_isPath src tgt len hpos s t hinj hk R a b h⟩
+
+/-- The paths of the multigraph read off paths `R` of `simpleInst` (`liftR`). -/
+noncomputable def liftSol (R : Fin k → List V) : Fin k → List (E × V) :=
+  fun i => liftR src tgt len (s i) (R i).tail
+
+/-- `liftSol` maps every solution of `simpleInst` to pairwise vertex-disjoint shortest paths of
+the multigraph. -/
+theorem isVertexSolution_liftSol {R : Fin k → List V}
+    (hR : (simpleInst src tgt len hpos s t hinj hk).IsSolution R) :
+    (MGraph.ofArcs src tgt len hpos).IsVertexSolution s t (liftSol src tgt len s R) := by
+  obtain ⟨hR, hdis⟩ := hR
+  have hW := fun i => liftR_isPath src tgt len hpos s t hinj hk (R i) _ _ (hR i).1
+  refine ⟨fun i => ⟨(hW i).1, fun W' hW' => ?_⟩, ?_⟩
+  · obtain ⟨h1, h2⟩ := verts_isPath src tgt len hpos s t hinj hk hW'
+    have h3 := (hR i).2 _ h1
+    have h4 : (MGraph.ofArcs src tgt len hpos).mlen (liftSol src tgt len s R i) =
+        (simpleInst src tgt len hpos s t hinj hk).wlen (R i) := (hW i).2.2
+    linarith
+  · intro i j hij v hv hv'
+    have hi : MGraph.verts (s i) (liftSol src tgt len s R i) = R i := (hW i).2.1
+    have hj : MGraph.verts (s j) (liftSol src tgt len s R j) = R j := (hW j).2.1
+    rw [hi] at hv
+    rw [hj] at hv'
+    exact hdis i j hij v hv hv'
 
 /-- Text after lem:Di (removal of parallel arcs).  A directed multigraph with positive lengths
 and `2k` distinct terminals has pairwise vertex-disjoint shortest paths iff the instance that
@@ -138,18 +184,8 @@ theorem parallel_arcs :
     have h2 := (hP i).2 W hW
     show G.wlen _ ≤ G.wlen R
     linarith
-  · rintro ⟨R, hR, hdis⟩
-    have hW := fun i => lift_isPath src tgt len hpos s t hinj hk (R i) _ _ (hR i).1
-    choose W hW hWv hWl using hW
-    refine ⟨W, fun i => ⟨hW i, fun W' hW' => ?_⟩, ?_⟩
-    · obtain ⟨h1, h2⟩ := verts_isPath src tgt len hpos s t hinj hk hW'
-      have := (hR i).2 _ h1
-      rw [hWl i]
-      linarith
-    · intro i j hij v hv hv'
-      rw [show MGraph.verts (s i) (W i) = R i from hWv i] at hv
-      rw [show MGraph.verts (s j) (W j) = R j from hWv j] at hv'
-      exact hdis i j hij v hv hv'
+  · rintro ⟨R, hR⟩
+    exact ⟨_, isVertexSolution_liftSol src tgt len hpos s t hinj hk hR⟩
 
 end
 
